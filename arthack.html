@@ -3289,34 +3289,152 @@ const HACKER_ART=[
 ".................:.:.::::::::*%%%%%%%%*:.............",
 "......::::::::::::::::::::::---=++++==:::.......... ."
 ];
+const TITLE_TAGLINE='D U N G E O N   E S C A P E';
+const TITLE_BOOT_DELAY=300;
+const TITLE_BOOT_READY_MS=2600;
+const TITLE_CHATTER_MS=260;
+let _titleAnimId=null;
+
+function resetTitleAnim(){
+  G._titleT=Date.now();
+  G._titleGlitchUntil=0;
+  G._titleLastGlitch=0;
+  G._titleGlitchX=0;
+  G._titleChatterNext=undefined;
+  G._titleChatterVisible=undefined;
+  G._titleChatterIdx=undefined;
+  G._titleChatterPool=undefined;
+}
+function stopTitleAnim(){
+  if(_titleAnimId!=null){cancelAnimationFrame(_titleAnimId);_titleAnimId=null;}
+}
+function startTitleAnim(){
+  stopTitleAnim();
+  titleAnimLoop();
+}
+function titleAnimLoop(){
+  if(G.overlay!=='title'){stopTitleAnim();return;}
+  _titleAnimId=requestAnimationFrame(titleAnimLoop);
+  render();
+}
+function titleBootDurationMs(){return TITLE_BOOT_READY_MS;}
+function titleBootDone(elapsed){
+  return elapsed>=TITLE_BOOT_READY_MS&&(G._titleChatterVisible?.length||0)>=8;
+}
+function titleCursor(){return Math.floor(Date.now()/530)%2?'_':'';}
+function drawTitleBg(t){
+  const phase=t*0.00035;
+  const g=ctx.createLinearGradient(0,0,CAN_W,CAN_H);
+  const a=Math.sin(phase)*0.12,b=Math.cos(phase*0.73)*0.1;
+  g.addColorStop(0,M.crust);
+  g.addColorStop(0.32+a,'#12122a');
+  g.addColorStop(0.58+b,'#0c1a16');
+  g.addColorStop(1,M.mantle);
+  ctx.fillStyle=g;
+  ctx.fillRect(0,0,CAN_W,CAN_H);
+  const cx=CAN_W*0.5,cy=CAN_H*0.27,r=Math.min(CAN_W,CAN_H)*0.42;
+  const rg=ctx.createRadialGradient(cx,cy,0,cx,cy,r);
+  rg.addColorStop(0,'rgba(137,180,250,0.07)');
+  rg.addColorStop(0.45,'rgba(166,227,161,0.05)');
+  rg.addColorStop(1,'rgba(17,17,27,0)');
+  ctx.fillStyle=rg;
+  ctx.fillRect(0,0,CAN_W,CAN_H);
+}
+function drawTitleScanlines(t){
+  const off=Math.floor(t*0.045)%3;
+  ctx.fillStyle='rgba(0,0,0,0.11)';
+  for(let y=off;y<CAN_H;y+=3)ctx.fillRect(0,y,CAN_W,1);
+  const beamY=((t*0.07)%1.15-0.075)*CAN_H;
+  const g=ctx.createLinearGradient(0,beamY-24,0,beamY+24);
+  g.addColorStop(0,'rgba(166,227,161,0)');
+  g.addColorStop(0.5,'rgba(166,227,161,0.045)');
+  g.addColorStop(1,'rgba(166,227,161,0)');
+  ctx.fillStyle=g;
+  ctx.fillRect(0,beamY-24,CAN_W,48);
+  ctx.fillStyle='rgba(255,255,255,0.015)';
+  for(let y=1;y<CAN_H;y+=5)ctx.fillRect(0,y,CAN_W,1);
+}
+function drawSkullArt(lines,x0,topY,lineH,t){
+  const pulse=0.58+0.42*Math.sin(t*0.0026);
+  ctx.globalAlpha=0.38;
+  ctx.fillStyle=M.s0;
+  for(let i=0;i<lines.length;i++)ctx.fillText(lines[i],x0,topY+i*lineH);
+  ctx.globalAlpha=0.55+0.45*pulse;
+  ctx.fillStyle=M.grn;
+  for(let i=0;i<lines.length;i++)ctx.fillText(lines[i],x0,topY+i*lineH);
+  ctx.globalAlpha=pulse*0.28;
+  ctx.fillStyle=M.tea;
+  for(let i=0;i<lines.length;i++)ctx.fillText(lines[i],x0,topY+i*lineH);
+  ctx.globalAlpha=1;
+}
+function drawTitleGlitchText(txt,y,tfs,t){
+  const now=Date.now();
+  if(now>G._titleGlitchUntil&&now-(G._titleLastGlitch||0)>2800+Math.sin(t*0.001)*600){
+    G._titleLastGlitch=now;
+    G._titleGlitchUntil=now+70+Math.random()*90;
+    G._titleGlitchX=(Math.random()<0.5?-1:1)*(2+Math.floor(Math.random()*3));
+  }
+  ctx.font=`bold ${tfs}px 'Courier New',monospace`;
+  const gx=(CAN_W-ctx.measureText(txt).width)/2;
+  const glitching=now<G._titleGlitchUntil;
+  if(glitching){
+    ctx.fillStyle=M.red;
+    ctx.fillText(txt,gx+G._titleGlitchX,y);
+    ctx.fillStyle=M.grn;
+    ctx.fillText(txt,gx-G._titleGlitchX,y);
+  }
+  const tg=ctx.createLinearGradient(gx,0,gx+ctx.measureText(txt).width,0);
+  tg.addColorStop(0,M.grn);
+  tg.addColorStop(0.55,M.tea);
+  tg.addColorStop(1,M.sky);
+  ctx.fillStyle=tg;
+  ctx.fillText(txt,gx,y);
+}
 function drawTitle(){
-  ctx.fillStyle=M.crust;ctx.fillRect(0,0,CAN_W,CAN_H);
+  const t=Date.now()-(G._titleT||Date.now());
+  drawTitleBg(t);
+  drawTitleScanlines(t);
   ctx.textAlign='left';ctx.textBaseline='top';
   const lines=HACKER_ART;
-  // Scale the monospace font so the widest line fits the window width AND the
-  // whole block fits the height — fillText never wraps, so this avoids overflow.
   const trial=24;
   ctx.font=`${trial}px 'Courier New',monospace`;
   let widest=1;for(const l of lines){const w=ctx.measureText(l).width;if(w>widest)widest=w;}
-  const availW=CAN_W*0.9,availH=CAN_H*0.58;
+  const availW=CAN_W*0.9,availH=CAN_H*0.36;
   let fpx=trial*Math.min(availW/widest,availH/(lines.length*trial*1.15));
-  fpx=Math.max(5,Math.min(28,fpx));
+  fpx=Math.max(5,Math.min(24,fpx));
   ctx.font=`${fpx}px 'Courier New',monospace`;
   const lineH=fpx*1.15;
   let w2=1;for(const l of lines){const w=ctx.measureText(l).width;if(w>w2)w2=w;}
-  const x0=Math.max(2,(CAN_W-w2)/2);          // single origin keeps the art aligned
-  const topY=Math.max(8,CAN_H*0.05);
-  ctx.fillStyle=M.grn;
-  for(let i=0;i<lines.length;i++)ctx.fillText(lines[i],x0,topY+i*lineH);
-  let y=topY+lines.length*lineH+lineH*0.5;
+  const x0=Math.max(2,(CAN_W-w2)/2);
+  const topY=Math.max(6,CAN_H*0.03);
+  drawSkullArt(lines,x0,topY,lineH,t);
+  drawTitleChatter(t);
+  const bootDone=titleBootDone(t);
+  let y=topY+lines.length*lineH+lineH*0.35;
   const ctr=(txt)=>{ctx.fillText(txt,(CAN_W-ctx.measureText(txt).width)/2,y);};
   const tfs=Math.max(14,Math.min(44,Math.floor(CAN_W*0.075)));
-  ctx.font=`bold ${tfs}px 'Courier New',monospace`;ctx.fillStyle=M.tea;ctr('ArtHack');y+=tfs*1.25;
   const sfs=Math.max(10,Math.min(18,Math.floor(CAN_W*0.028)));
-  ctx.font=`${sfs}px 'Courier New',monospace`;ctx.fillStyle=M.sub;ctr('D U N G E O N   E S C A P E');y+=sfs*2.1;
-  let saves=0;for(let i=0;i<RUN_SLOT_COUNT;i++)if(peekRunSave(i))saves++;
-  ctx.fillStyle=M.lav;ctr(TOUCH_MODE?'Tap NEW GAME or LOAD below':'[N] New Game        [L] Load Game');
-  if(saves>0){y+=sfs*1.7;ctx.fillStyle=M.s1;ctr(`${saves} saved run${saves>1?'s':''} on this device`);}
+  if(bootDone){
+    drawTitleGlitchText('ArtHack',y,tfs,t);
+    y+=tfs*1.25;
+    const tagStart=titleBootDurationMs()+320;
+    const tagDt=Math.max(0,t-tagStart);
+    const tagN=Math.min(TITLE_TAGLINE.length,Math.floor(tagDt/46));
+    const tagTyping=tagN<TITLE_TAGLINE.length;
+    const tagVisible=TITLE_TAGLINE.slice(0,tagN)+(tagTyping?titleCursor():'');
+    ctx.font=`${sfs}px 'Courier New',monospace`;
+    ctx.fillStyle=M.sub;
+    ctr(tagVisible);
+    y+=sfs*2.1;
+    const menuReady=!tagTyping&&tagDt>260;
+    if(menuReady){
+      let saves=0;for(let i=0;i<RUN_SLOT_COUNT;i++)if(peekRunSave(i))saves++;
+      ctx.fillStyle=M.lav;
+      const menu=TOUCH_MODE?'Tap NEW GAME or LOAD below':'[N] New Game        [L] Load Game';
+      ctr(menu+titleCursor());
+      if(saves>0){y+=sfs*1.7;ctx.fillStyle=M.s1;ctr(`${saves} saved run${saves>1?'s':''} on this device`);}
+    }
+  }
 }
 function handleTitleKey(e){
   if(e.key==='n'||e.key==='N'){titleNewGame();return;}
@@ -3325,6 +3443,7 @@ function handleTitleKey(e){
   render();
 }
 function titleNewGame(){
+  stopTitleAnim();
   G.slotPick=null;
   let empty=-1;for(let i=0;i<RUN_SLOT_COUNT;i++)if(!peekRunSave(i)){empty=i;break;}
   if(empty<0){G.overlay='resume';G._resumeCursor=0;addLog('All save slots are full — pick one to overwrite for a new run.',M.yel);render();return;}
@@ -3333,6 +3452,7 @@ function titleNewGame(){
   G.overlay='archetype';G._archCursor=0;G._archScroll=0;render();
 }
 function titleLoad(){
+  stopTitleAnim();
   G.slotPick=null;G._loadMsg='';
   G.overlay='resume';G._resumeCursor=firstOccupiedRunSlot();render();
 }
@@ -7654,6 +7774,134 @@ const TOOL_LOG={
   env_creds:t=>[`[env_harvester] ${t.ip} /proc/*/environ + .env scan`,
     `[env_harvester] AWS_SECRET=${fhex(16)} DB_PASS=${fakePwd()}`],
 };
+const TITLE_CHATTER_ANCHORS=[
+  {text:'CastleNet handshake… OK',col:M.tea},
+  {text:'rig firmware v2.4.1 — mid-tier portable console',col:M.tea},
+  {text:'threat level: UNKNOWN',col:M.yel},
+  {text:'portable console: ONLINE',col:M.grn},
+  {text:'SESSION uplink: CastleNet-LOCAL',col:M.sky},
+];
+function titleFakeHost(salt=0){
+  const ctrl=ch(['doors','locks','loot','gates','cameras','vault','db','radio']);
+  const idx=1+((salt+ri(0,8))%9);
+  const lvl=ri(0,3);
+  return{
+    ip:terminalIP(ctrl,lvl),
+    mac:genMac(),
+    hostname:terminalHostname(ctrl,idx),
+    ssid:`CastleNet-${lvl}-${idx}`,
+    control:ctrl,
+    tier:ri(1,3),
+    ports:[['tcp',ch([22,80,443,445,3389])],['tcp',ch([8080,5985,8443,5985])]]
+  };
+}
+function titleChatterLineColor(ln){
+  if(/\[!\]|denied|HONEYPOT|MISS|failed/i.test(ln))return M.yel;
+  if(/CRACKED|ROOT|SUCCESS|GRANTED|ONLINE|confirmed|UP/i.test(ln))return M.tea;
+  if(/^\[|^\*/.test(ln))return M.grn;
+  return M.s1;
+}
+function titleBuildChatterPool(){
+  const pool=[...TITLE_CHATTER_ANCHORS];
+  const hosts=Array.from({length:3},(_,i)=>titleFakeHost(i));
+  for(const host of hosts){
+    for(const fn of Object.values(TOOL_LOG)){
+      for(const ln of fn(host))pool.push({text:ln,col:titleChatterLineColor(ln)});
+    }
+    pool.push({text:`[*] portscan ${host.ssid} (${host.ip})`,col:M.blu});
+    pool.push({text:`    MAC ${host.mac}  vendor: ${ch(FAKE_VEN)}`,col:M.sub});
+    for(const[proto,port] of host.ports)pool.push({text:`    ${proto}/${port}  OPEN`,col:M.sub});
+    pool.push({text:`[*] vulnscan ${host.ssid} (mode hint: balanced)`,col:M.blu});
+    pool.push({text:`    balanced success chance: ${ri(35,88)}%`,col:M.sub});
+    pool.push({text:`    missing tools: ${ch(['none','capture_handshake','port_scan'])}`,col:M.sub});
+  }
+  const syslog=[
+    `[${ri(1,28)}] sshd[${ri(1000,9999)}]: Accepted publickey for deploy from 10.0.0.4`,
+    `[${ri(1,28)}] systemd[1]: Started Castle API on 10.0.${ri(1,9)}.${ri(10,250)}`,
+    `[${ri(1,28)}] CRON[${ri(1000,4000)}]: (root) CMD /opt/castle/rotate-creds.sh`,
+    `[${ri(1,28)}] kernel: [${ri(100000,999999)}] audit: type=1325`,
+    `[${ri(1,28)}] nginx: 200 GET /health from 127.0.0.1`,
+    `[${ri(1,28)}] sudo: deploy : TTY=pts/0 ; USER=root ; COMMAND=/bin/bash`,
+  ];
+  for(const ln of syslog)pool.push({text:ln,col:M.sub});
+  const shells=[
+    ['operator@rig:~$ portscan','[*] run vulnscan to map CVEs and required modules'],
+    ['operator@rig:~$ grep -i password /var/log/auth.log','grep: /var/log/auth.log: Permission denied'],
+    ['operator@rig:~$ ls -la /opt/castle','drwxr-x--- deploy deploy 4096 Mar 15 app'],
+    ['operator@rig:~$ cat /etc/hostname',terminalHostname(ch(['doors','locks','loot']),ri(1,9))],
+    ['operator@rig:~$ ps aux | grep bash',`deploy ${2100+ri(0,99)} 0.0 0.1 bash`],
+    ['operator@rig:~$ explore','▶ PRE-ROOT EXPLORE '+ri(4,9)+'/'+ri(10,14)+' — type explore for checklist'],
+    ['operator@rig:~$ hack balanced','*** ROOT ACCESS GRANTED ***'],
+    ['operator@rig:~$ botnet','[+] C2 node installed — resource ONLINE'],
+    ['operator@rig:~$ clearlogs','[log_wiper] 0x'+fhex(4)+' events purged; /var/log/* truncated'],
+    ['operator@rig:~$ bruteforce /etc/passwd',`[brute_force_passwd] ${(ri(80,400)*1000).toLocaleString()} c/s — 1/3 hashes recovered`],
+  ];
+  for(const[cmd,out] of shells){
+    pool.push({text:cmd,col:M.sky});
+    pool.push({text:out,col:titleChatterLineColor(out)});
+  }
+  sh(pool);
+  return pool;
+}
+function titleNextChatterLine(){
+  if(!G._titleChatterPool?.length){
+    G._titleChatterPool=titleBuildChatterPool();
+    G._titleChatterIdx=0;
+  }
+  if(G._titleChatterIdx>=G._titleChatterPool.length){
+    sh(G._titleChatterPool);
+    G._titleChatterIdx=0;
+  }
+  return G._titleChatterPool[G._titleChatterIdx++];
+}
+function titleChatterUpdate(elapsed){
+  if(G._titleChatterNext===undefined){
+    G._titleChatterNext=TITLE_BOOT_DELAY;
+    G._titleChatterVisible=[];
+  }
+  while(elapsed>=G._titleChatterNext){
+    G._titleChatterNext+=TITLE_CHATTER_MS+(rf()<0.12?TITLE_CHATTER_MS*0.5:0);
+    G._titleChatterVisible.push(titleNextChatterLine());
+    const cap=Math.max(24,Math.ceil(CAN_H/12));
+    if(G._titleChatterVisible.length>cap)G._titleChatterVisible.shift();
+  }
+}
+function titleChatterTrunc(txt,maxW,fs){
+  ctx.font=`${fs}px 'Courier New',monospace`;
+  const s=String(txt);
+  if(ctx.measureText(s).width<=maxW)return s;
+  let cut=s;
+  while(cut.length>3&&ctx.measureText(cut+'…').width>maxW)cut=cut.slice(0,-1);
+  return cut+'…';
+}
+function drawTitleChatter(t){
+  titleChatterUpdate(t);
+  const panelH=Math.floor(CAN_H*0.42);
+  const panelY=CAN_H-panelH-2;
+  const cfs=Math.max(12,Math.min(20,Math.floor(CAN_W*0.03)));
+  const pad=12;
+  ctx.fillStyle='rgba(17,17,27,0.93)';
+  ctx.fillRect(0,panelY-8,CAN_W,panelH+12);
+  ctx.strokeStyle=M.s0;
+  ctx.strokeRect(0.5,panelY-7.5,CAN_W-1,panelH+11);
+  ctx.font=`${cfs}px 'Courier New',monospace`;
+  const hdr=' CastleNet-LOCAL — rig console ';
+  ctx.fillStyle=M.s0;
+  ctx.fillRect(pad,panelY-4,ctx.measureText(hdr).width+10,cfs+5);
+  ctx.fillStyle=M.lav;
+  ctx.fillText(hdr,pad+5,panelY-2);
+  const lineH=cfs*1.3;
+  const startY=panelY+cfs+8;
+  const maxLines=Math.max(5,Math.floor((panelH-cfs-14)/lineH));
+  const visible=(G._titleChatterVisible||[]).slice(-maxLines);
+  const blink=Math.floor(t/400)%2?titleCursor():'';
+  for(let i=0;i<visible.length;i++){
+    const row=visible[i];
+    const isLast=i===visible.length-1;
+    ctx.fillStyle=row.col||M.grn;
+    ctx.fillText(titleChatterTrunc(row.text+(isLast?blink:''),CAN_W-pad*2,cfs),pad,startY+i*lineH);
+  }
+}
 
 function emitHackLogs(term,loadout){
   const t={ip:term.ip||'10.0.0.1',mac:term.mac||'DE:AD:BE:EF:00:01',
@@ -10738,6 +10986,8 @@ async function init(){
   recompressExistingSaves();
   applyProfileUnlocks();
   G.overlay='title';
+  resetTitleAnim();
+  startTitleAnim();
   render();
 }
 init();
