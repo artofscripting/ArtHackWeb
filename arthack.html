@@ -16,7 +16,7 @@
 html{height:100%;background:#1e1e2e}
 body{position:fixed;inset:0;width:100%;height:100vh;height:100dvh;background:#1e1e2e;overflow:hidden;overscroll-behavior:none;touch-action:none;-webkit-user-select:none;user-select:none;-webkit-tap-highlight-color:transparent;-webkit-touch-callout:none}
 input,textarea{-webkit-user-select:text;user-select:text}
-#c{display:block;position:fixed;inset:0;width:100%;height:100%;z-index:0}
+#c{display:block;position:fixed;inset:0;width:100%;height:100%;z-index:0;touch-action:none}
 #inp{position:fixed;bottom:0;left:0;width:100%;background:#11111b;border-top:1px solid #45475a;padding:4px 8px;padding-bottom:calc(4px + var(--safe-b));color:#cdd6f4;font:16px 'Courier New',monospace;display:none;outline:none}
 #corner-ctrls{position:fixed;top:calc(2px + var(--safe-t));right:calc(4px + var(--safe-r));z-index:200;display:flex;gap:4px;align-items:center}
 #mode-link{padding:2px 7px;background:rgba(17,17,27,0.88);border:1px solid #45475a;border-radius:3px;font:10px 'Courier New',monospace}
@@ -72,6 +72,7 @@ input,textarea{-webkit-user-select:text;user-select:text}
     <button class="bh" data-key="z">SHOOT</button>
     <button class="bm" data-key="A">LOOT</button>
     <button class="bm" data-key="l">LOOK</button>
+    <button class="bm" data-key="m">MAP</button>
     <button class="bm" data-key="g">CRAFT</button>
     <button class="bm" data-key="p">TOOLS</button>
     <button class="bm" data-key="u">SKILLS</button>
@@ -2689,7 +2690,7 @@ function drawSidebar(){
     sl('0:console rig',M.sub);
     sl('t or /:command',M.sub);
     sl('x:hack -:logs r:rest',M.sub);
-    sl('m:minimap n:journal 8:secrets o:log',M.sub);
+    sl('m:map n:journal 8:secrets o:log',M.sub);
     sl('u:skills q:quit',M.sub);
   }
   ctx.restore();
@@ -2746,40 +2747,90 @@ function drawLog(){
   ctx.font=`${CH}px 'Courier New',monospace`;
 }
 
-function drawMinimap(){
-  const scale=6;
-  const mw=Math.floor(WW/scale),mh=Math.floor(WH/scale);
-  const ox=Math.floor((CAN_W-mw*2)/2),oy=Math.floor((CAN_H-mh*2)/2);
-  ctx.fillStyle='rgba(17,17,27,0.92)';ctx.fillRect(ox-4,oy-4,mw*2+8,mh*2+12+CH);
-  ctx.fillStyle=M.lav;ctx.fillText('MINIMAP  [m] close',ox,oy-4);
-  for(let my=0;my<mh;my++){
-    for(let mx=0;mx<mw;mx++){
-      let best=VOID,bestP=-1;
-      for(let dy=0;dy<scale;dy++)for(let dx=0;dx<scale;dx++){
-        const wx=mx*scale+dx,wy=my*scale+dy;
-        if(wx>=WW||wy>=WH)continue;
-        if(!seen.has(`${wx},${wy}`))continue;
-        const c=grid[wy][wx];
-        const p=MINI_PR[c]??-1;
-        if(p>bestP){bestP=p;best=c;}
-      }
-      if(best===VOID)continue;
-      ctx.fillStyle=FG[best]||M.s0;
-      ctx.fillRect(ox+mx*2,oy+my*2,2,2);
-    }
+// ── Full-window pannable / zoomable map overlay ───────────────
+let MAPV=null;            // {cell, ox, oy}: px per world cell, screen px of world (0,0)
+const MAP_CELL_MIN=0.5,MAP_CELL_MAX=40;
+function mapAvail(){
+  const b=reservedBands();
+  return{x0:b.left,y0:b.top,w:Math.max(40,CAN_W-b.left-b.right),h:Math.max(40,CAN_H-b.top-b.bottom)};
+}
+function mapSeenBounds(){
+  let minx=WW,miny=WH,maxx=0,maxy=0,any=false;
+  for(const k of seen){
+    const i=k.indexOf(',');const x=+k.slice(0,i),y=+k.slice(i+1);
+    if(x<minx)minx=x;if(x>maxx)maxx=x;if(y<miny)miny=y;if(y>maxy)maxy=y;any=true;
   }
-  // Terminal markers + player
+  if(!any)return{minx:Math.max(0,G.px-20),miny:Math.max(0,G.py-12),maxx:Math.min(WW-1,G.px+20),maxy:Math.min(WH-1,G.py+12)};
+  return{minx,miny,maxx,maxy};
+}
+// Fit the explored area into the window and centre it.
+function fitMap(){
+  const a=mapAvail(),b=mapSeenBounds();
+  const spanX=b.maxx-b.minx+1,spanY=b.maxy-b.miny+1;
+  let cell=Math.min(a.w/spanX,a.h/spanY)*0.94;
+  cell=Math.max(MAP_CELL_MIN,Math.min(MAP_CELL_MAX,cell));
+  const cx=(b.minx+b.maxx+1)/2,cy=(b.miny+b.maxy+1)/2;
+  MAPV={cell,ox:a.x0+a.w/2-cx*cell,oy:a.y0+a.h/2-cy*cell};
+}
+// Loose clamp: always keep a slice of the map within the window.
+function mapClampPan(){
+  if(!MAPV)return;
+  const a=mapAvail(),mapW=WW*MAPV.cell,mapH=WH*MAPV.cell;
+  MAPV.ox=Math.min(a.x0+a.w*0.8,Math.max(a.x0+a.w*0.2-mapW,MAPV.ox));
+  MAPV.oy=Math.min(a.y0+a.h*0.8,Math.max(a.y0+a.h*0.2-mapH,MAPV.oy));
+}
+function mapZoomAt(fx,fy,factor){
+  if(!MAPV)fitMap();
+  const old=MAPV.cell;
+  const cell=Math.max(MAP_CELL_MIN,Math.min(MAP_CELL_MAX,old*factor));
+  if(cell===old)return;
+  const wx=(fx-MAPV.ox)/old,wy=(fy-MAPV.oy)/old;
+  MAPV.ox=fx-wx*cell;MAPV.oy=fy-wy*cell;MAPV.cell=cell;
+  mapClampPan();
+}
+function openMapPanel(){G.overlay='map';MAPV=null;_mapPtrs.clear();_mapPinch=null;} // fit lazily on first draw (after ctx-bar sizes)
+function drawMap(){
+  if(!MAPV)fitMap();
+  const a=mapAvail(),{cell,ox,oy}=MAPV;
+  ctx.fillStyle='rgba(17,17,27,0.98)';ctx.fillRect(0,0,CAN_W,CAN_H);
+  const x0=Math.max(0,Math.floor((a.x0-ox)/cell)),x1=Math.min(WW-1,Math.ceil((a.x0+a.w-ox)/cell));
+  const y0=Math.max(0,Math.floor((a.y0-oy)/cell)),y1=Math.min(WH-1,Math.ceil((a.y0+a.h-oy)/cell));
+  const px=Math.max(1,Math.ceil(cell));
+  for(let wy=y0;wy<=y1;wy++)for(let wx=x0;wx<=x1;wx++){
+    if(!seen.has(`${wx},${wy}`))continue;
+    const c=grid[wy][wx];
+    if(c===VOID)continue;
+    ctx.fillStyle=FG[c]||M.s0;
+    ctx.fillRect(ox+wx*cell,oy+wy*cell,px,px);
+  }
+  // Special markers (only what's been seen)
+  const mk=Math.max(px,Math.ceil(cell*1.5)),off=(mk-px)/2;
   for(const[key,sp] of Object.entries(specials)){
-    if(sp.kind!=='terminal'||!seen.has(key))continue;
+    if(!seen.has(key))continue;
+    let col=null;
+    if(sp.kind==='terminal')col=terminalStatus(sp).color;
+    else if(sp.kind==='shop')col=M.pch;
+    else if(sp.kind==='station')col=M.yel;
+    else if(sp.kind==='stairs_up'||sp.kind==='stairs_down')col=M.sky;
+    else if(sp.kind==='portal')col=M.mau;
+    else if(sp.kind==='gate')col=M.grn;
+    if(!col)continue;
     const[wx,wy]=key.split(',').map(Number);
-    const st=terminalStatus(sp);
-    ctx.fillStyle=st.color;
-    ctx.fillRect(ox+Math.floor(wx/scale)*2,oy+Math.floor(wy/scale)*2,2,2);
+    ctx.fillStyle=col;
+    ctx.fillRect(ox+wx*cell-off,oy+wy*cell-off,mk,mk);
   }
+  // Player
+  const pmk=Math.max(4,Math.ceil(cell*1.8)),poff=(pmk-px)/2;
   ctx.fillStyle=M.grn;
-  ctx.fillRect(ox+Math.floor(G.px/scale)*2,oy+Math.floor(G.py/scale)*2,3,3);
+  ctx.fillRect(ox+G.px*cell-poff,oy+G.py*cell-poff,pmk,pmk);
+  // Header / hints
+  const lh=overlayCh();
+  ctx.font=`${lh}px 'Courier New',monospace`;
+  ctx.fillStyle=M.lav;ctx.fillText(`MAP — level ${G.level}  ·  ${cell.toFixed(1)} px/cell`,a.x0+6,a.y0+4);
   ctx.fillStyle=M.sub;
-  ctx.fillText('! lock  + unlock  * secret  R root',ox,oy+mh*2+CH);
+  ctx.fillText(TOUCH_MODE?'drag = pan · pinch = zoom · ZOOM/FIT/CLOSE above':'drag = pan · wheel or +/- = zoom · arrows = pan · f = fit · m/Esc = close',a.x0+6,a.y0+4+lh);
+  ctx.fillStyle=M.s1;
+  ctx.fillText('@ you · ! lock + unlock * secret R root · % shop A/F craft < > stairs',a.x0+6,a.y0+4+lh*2);
 }
 
 let OV_TOP=0,OV_H=0; // overlay content area (below the top control bar)
@@ -2874,6 +2925,7 @@ function drawOverlay(){
   else if(G.overlay==='commands')drawCommands();
   else if(G.overlay==='journal')drawJournal();
   else if(G.overlay==='secrets')drawSecrets();
+  else if(G.overlay==='map')drawMap();
   else if(G.overlay==='travel')drawTravel();
   else if(G.overlay==='inventory')drawInventory();
   else if(G.overlay==='craft')drawCraft();
@@ -3275,7 +3327,7 @@ function drawCommands(){
     ['l — look around   e/Space — search   A — auto-loot room',M.sub,2],
     ['i — inventory    g — crafting    p — toolkit/shop',M.sub,2],
     ['0 — portable console rig (upgrade loot & hacks)',M.sub,2],
-    ['t or / — command prompt  u — skills  m — minimap',M.sub,2],
+    ['t or / — command prompt  u — skills  m — map (drag-pan, pinch/wheel/+- zoom)',M.sub,2],
     ['term / terminal — shell on adjacent ! terminal',M.sub,2],
     ['n — journal  8 — secrets  9 — fast travel  o — log panel  c — commands  ? — help  q — quit',M.sub,2],
     ['9 — fast-travel panel: teleport to last-seen shop / anvil / crafting table',M.sub,2],
@@ -4777,6 +4829,12 @@ function updateCtxBar(){
         }
         key('ESC','cd','Escape');
       }
+    } else if(ov==='map'){
+      const a=mapAvail(),cx=a.x0+a.w/2,cy=a.y0+a.h/2;
+      bar.appendChild(ctxBtn('ZOOM +','cb',()=>{mapZoomAt(cx,cy,1.3);render();}));
+      bar.appendChild(ctxBtn('ZOOM −','cb',()=>{mapZoomAt(cx,cy,1/1.3);render();}));
+      bar.appendChild(ctxBtn('FIT','cy',()=>{fitMap();render();}));
+      key('CLOSE','cd','Escape');
     } else if(ov==='travel'){
       if(G.travelConfirm){
         bar.appendChild(ctxBtn('YES ✓','cg',()=>doTravelTeleport(G.travelConfirm)));
@@ -4963,10 +5021,8 @@ function render(){
   ctx.setTransform(DPR*GSCALE,0,0,DPR*GSCALE,GX*DPR,GY*DPR);
   if(IS_PORTRAIT){
     drawGameView();drawCompactSidebar();drawLog();
-    if(G.showMinimap)drawMinimap();
   }else{
     drawGameView();drawSidebar();drawLog();
-    if(G.showMinimap)drawMinimap();
   }
   ctx.setTransform(DPR,0,0,DPR,0,0);
   updateCtxBar();
@@ -6113,8 +6169,10 @@ function termSecretPathFor(sp){
 function initTerminalMeta(sp){
   if(!sp)return;
   if(sp._explored&&!sp._exploredPre){sp._exploredPre=sp._explored;delete sp._explored;}
-  sp._exploredPre=sp._exploredPre||new Set();
-  sp._exploredPost=sp._exploredPost||new Set();
+  // Coerce to Set: a save written before Set-aware serialization restores these as {}.
+  const asSet=v=>v instanceof Set?v:new Set(Array.isArray(v)?v:[]);
+  sp._exploredPre=asSet(sp._exploredPre);
+  sp._exploredPost=asSet(sp._exploredPost);
   if(!sp._metaInit){
     sp._metaInit=true;
     const fam=shellSysFamily(sp.control||'dungeon');
@@ -8166,7 +8224,7 @@ function processCmd(cmd){
   if(low==='inventory'||low==='inv'||low==='bag'){G.overlay='inventory';G.invCursor=0;G.invScroll=0;return;}
   if(low==='craft'||low==='crafting'){openCraftPanel();return;}
   if(low==='skills'||low==='skill'){G.overlay='skills';return;}
-  if(low==='map'||low==='minimap'){G.showMinimap=!G.showMinimap;return;}
+  if(low==='map'||low==='minimap'){openMapPanel();return;}
   if(low==='journal'||low==='notes'){G.overlay='journal';return;}
   if(low==='secrets'||low==='secret'||low==='creds'){openSecretsOverlay();return;}
   if(low==='rest'||low==='wait'){addLog('You rest and listen to the castle.',M.sub);endTurn();return;}
@@ -8351,7 +8409,7 @@ document.addEventListener('keydown',e=>{
   const k=e.key;
   if(k==='t'||k==='T'){if(adjTerminal()){openTerminalShell();render();return;}G.cmdMode=true;G.cmdBuf='';inp.style.display='block';inp.focus();setTimeout(()=>{inp.value='';updateCmdInputPosition();},0);return;}
   if(k==='/'){G.cmdMode=true;G.cmdBuf='';inp.style.display='block';inp.focus();setTimeout(()=>{inp.value='';updateCmdInputPosition();},0);return;}
-  if(k==='m'||k==='M'){G.showMinimap=!G.showMinimap;render();return;}
+  if(k==='m'||k==='M'){openMapPanel();render();return;}
   if(k==='i'||k==='I'){G.overlay='inventory';G.invCursor=0;G.invScroll=0;render();return;}
   if(k==='g'||k==='G'){openCraftPanel();render();return;}
   if(k==='p'||k==='P'){if(currentShop()){G.overlay='shop';G.shopCursor=0;G.shopScroll=0;}else G.overlay='toolkit';render();return;}
@@ -8478,6 +8536,18 @@ function handleOverlayKey(e){
     else if(e.key==='PageDown'||e.key===' ')G.secretsCursor=Math.min(Math.max(0,entries.length-1),(G.secretsCursor||0)+pg);
     else if(e.key==='Home')G.secretsCursor=0;
     else if(e.key==='End')G.secretsCursor=Math.max(0,entries.length-1);
+  } else if(G.overlay==='map'){
+    if(!MAPV)fitMap();
+    const a=mapAvail(),step=Math.max(24,a.w*0.12),cx=a.x0+a.w/2,cy=a.y0+a.h/2;
+    if(e.key==='m'||e.key==='M')G.overlay=null;
+    else if(e.key==='+'||e.key==='='||e.key==='k'||e.key==='K')mapZoomAt(cx,cy,1.25);
+    else if(e.key==='-'||e.key==='_'||e.key==='j'||e.key==='J')mapZoomAt(cx,cy,1/1.25);
+    else if(e.key==='f'||e.key==='F'||e.key==='0')fitMap();
+    else if(e.key==='ArrowUp'||e.key==='w')MAPV.oy+=step;
+    else if(e.key==='ArrowDown'||e.key==='s')MAPV.oy-=step;
+    else if(e.key==='ArrowLeft'||e.key==='a'||e.key==='h')MAPV.ox+=step;
+    else if(e.key==='ArrowRight'||e.key==='d'||e.key==='l')MAPV.ox-=step;
+    mapClampPan();
   } else if(G.overlay==='travel'){
     if(G.travelConfirm){
       if(e.key==='Enter'||e.key==='y'||e.key==='Y')doTravelTeleport(G.travelConfirm);
@@ -8916,7 +8986,7 @@ function peekRunSave(slot){
   try{
     const raw=localStorage.getItem(runSlotKey(slot));
     if(!raw)return null;
-    const data=JSON.parse(raw);
+    const data=parseRunSave(raw);
     if(!data?.G)return null;
     if(data.v!==1&&data.v!==RUN_SAVE_VER)return null;
     return runMetaFromData(data);
@@ -8932,6 +9002,11 @@ function clearRunState(slot=_activeRunSlot){
   idx.slots[slot]=null;
   saveRunIndex(idx);
 }
+// Sets (e.g. terminal _exploredPre/_exploredPost) become {} under plain
+// JSON.stringify, which corrupts the save. Encode/decode them so they survive.
+function runSaveReplacer(k,v){return v instanceof Set?{__t:'Set',v:[...v]}:v;}
+function runSaveReviver(k,v){return v&&v.__t==='Set'&&Array.isArray(v.v)?new Set(v.v):v;}
+function parseRunSave(raw){return JSON.parse(raw,runSaveReviver);}
 function saveRunState(){
   if(G.dead||G.won)return;
   if(!levelStore.length)return;
@@ -8940,23 +9015,31 @@ function saveRunState(){
   let blob;
   try{
     blob=packRunSave();
-    localStorage.setItem(runSlotKey(slot),JSON.stringify(blob));
+    localStorage.setItem(runSlotKey(slot),JSON.stringify(blob,runSaveReplacer));
   }catch(e){
     try{
       blob=packRunSave();
       blob.log=blob.log.slice(-80);
-      localStorage.setItem(runSlotKey(slot),JSON.stringify(blob));
+      localStorage.setItem(runSlotKey(slot),JSON.stringify(blob,runSaveReplacer));
     }catch{return;}
   }
   const idx=loadRunIndex();
   idx.slots[slot]=runMetaFromData(blob);
   saveRunIndex(idx);
 }
+// Mobile browsers freeze and evict backgrounded tabs without firing
+// beforeunload, so autosaving only on panel open/close loses runs when the
+// player switches apps or locks the screen. Persist on the lifecycle events
+// that DO fire on mobile: visibilitychange (-> hidden) and pagehide.
+function flushRunSave(){if(levelStore.length&&!G.dead&&!G.won)saveRunState();}
+document.addEventListener('visibilitychange',()=>{if(document.visibilityState==='hidden')flushRunSave();});
+window.addEventListener('pagehide',flushRunSave);
+window.addEventListener('beforeunload',flushRunSave);
 function loadRunState(slot=_activeRunSlot){
   try{
     const raw=localStorage.getItem(runSlotKey(slot));
     if(!raw)return false;
-    const data=JSON.parse(raw);
+    const data=parseRunSave(raw);
     if(!data?.G||!data.levelStore?.length)return false;
     if(data.v!==1&&data.v!==RUN_SAVE_VER)return false;
     _activeRunSlot=slot;
@@ -9063,8 +9146,49 @@ function handleMapDrag(e,g){
 const SCROLL_OVERLAYS=new Set(['log','inventory','craft','shop','hack','module_select','term_shell','secrets']);
 const TAP_SELECT_OVERLAYS=new Set(['archetype','difficulty','travel']);
 let _gesture=null,_ovScroll=null;
+// ── Map overlay: drag to pan, pinch / wheel to zoom ───────────
+let _mapPtrs=new Map(),_mapPinch=null;
+function mapPointerDown(e){
+  _mapPtrs.set(e.pointerId,{x:e.clientX,y:e.clientY});
+  if(_mapPtrs.size<2)_mapPinch=null;
+}
+function mapPointerMove(e){
+  if(!MAPV||!_mapPtrs.has(e.pointerId))return;
+  const rect=canvas.getBoundingClientRect();
+  const prev=_mapPtrs.get(e.pointerId);
+  _mapPtrs.set(e.pointerId,{x:e.clientX,y:e.clientY});
+  const pts=[..._mapPtrs.values()];
+  if(pts.length>=2){
+    const[p,q]=pts;
+    const dist=Math.hypot(p.x-q.x,p.y-q.y);
+    const midX=(p.x+q.x)/2-rect.left,midY=(p.y+q.y)/2-rect.top;
+    if(_mapPinch){
+      if(_mapPinch.dist>0)mapZoomAt(midX,midY,dist/_mapPinch.dist);
+      MAPV.ox+=midX-_mapPinch.midX;MAPV.oy+=midY-_mapPinch.midY;
+      mapClampPan();
+    }
+    _mapPinch={dist,midX,midY};
+  }else{
+    _mapPinch=null;
+    MAPV.ox+=e.clientX-prev.x;MAPV.oy+=e.clientY-prev.y;
+    mapClampPan();
+  }
+  render();
+}
+function mapPointerUp(e){
+  _mapPtrs.delete(e.pointerId);
+  if(_mapPtrs.size<2)_mapPinch=null;
+}
+canvas.addEventListener('wheel',e=>{
+  if(G.overlay!=='map')return;
+  e.preventDefault();
+  const rect=canvas.getBoundingClientRect();
+  mapZoomAt(e.clientX-rect.left,e.clientY-rect.top,e.deltaY<0?1.15:1/1.15);
+  render();
+},{passive:false});
 canvas.addEventListener('pointerdown',e=>{
   if(G.overlay==='minigame'){_gesture=null;_ovScroll=null;return;}
+  if(G.overlay==='map'){mapPointerDown(e);return;}
   if(G.overlay){
     _gesture=null;
     if(SCROLL_OVERLAYS.has(G.overlay)||TAP_SELECT_OVERLAYS.has(G.overlay))
@@ -9076,6 +9200,7 @@ canvas.addEventListener('pointerdown',e=>{
   _gesture={id:e.pointerId,x:e.clientX,y:e.clientY,lastStepX:e.clientX,lastStepY:e.clientY,walked:false};
 },{passive:true});
 canvas.addEventListener('pointermove',e=>{
+  if(G.overlay==='map'){mapPointerMove(e);return;}
   if(_ovScroll&&e.pointerId===_ovScroll.id&&G.overlay){
     if(G.overlay==='craft'&&G.craftConfirm)return;
     const step=ovScrollStepPx();
@@ -9088,6 +9213,7 @@ canvas.addEventListener('pointermove',e=>{
   if(g&&e.pointerId===g.id&&!G.overlay&&gestureLive())handleMapDrag(e,g);
 },{passive:true});
 canvas.addEventListener('pointerup',e=>{
+  if(G.overlay==='map'){mapPointerUp(e);return;}
   if(G.overlay==='minigame'){
     if(tapMinigame(e.clientX,e.clientY))render();
     _gesture=null;_ovScroll=null;
@@ -9124,7 +9250,7 @@ canvas.addEventListener('pointerup',e=>{
   if(s==='wait')doAction('r');                // pass a turn
   else if(s)moveStep(s[0],s[1]);
 },{passive:true});
-canvas.addEventListener('pointercancel',()=>{_gesture=null;_ovScroll=null;},{passive:true});
+canvas.addEventListener('pointercancel',e=>{_gesture=null;_ovScroll=null;if(e)_mapPtrs.delete(e.pointerId);if(_mapPtrs.size<2)_mapPinch=null;},{passive:true});
 (function initUI(){
   const link=document.getElementById('mode-link');
   const tui=document.getElementById('touch-ui');
