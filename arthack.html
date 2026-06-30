@@ -77,6 +77,7 @@ input,textarea{-webkit-user-select:text;user-select:text}
     <button class="bm" data-key="u">SKILLS</button>
     <button class="bm" data-key="n">JOURNAL</button>
     <button class="bm" data-key="8">SECRETS</button>
+    <button class="bm" data-key="9">TRAVEL</button>
     <button class="bm" data-key="o">LOG</button>
     <button class="bm" data-key="=">SUMMARY</button>
     <button class="bm" data-key="c">CMDS</button>
@@ -1904,6 +1905,8 @@ function buildLevelStore(act='escape'){
   const prevAct=dungeonAct;
   dungeonAct=act;
   levelStore=[];stairLinks={};_rid=0;
+  // Known travel spots reference the old level set — clear them on a rebuild.
+  G.travel={shop:null,anvil:null,table:null};G.travelConfirm=null;
   for(let l=0;l<NUM_LEVELS;l++){
     const snap=genLevel(l);
     populateLevel(snap);
@@ -2052,10 +2055,27 @@ function computeVisible(radius){
   }
   visible=vis;
   for(const k of vis)seen.add(k);
+  recordKnownTravel();
 }
 
 function revealCurrentLevel(){
   for(let y=0;y<WH;y++)for(let x=0;x<WW;x++)if(getc(grid,x,y)!==VOID)seen.add(`${x},${y}`);
+  recordKnownTravel();
+}
+
+// Remember the most recently discovered shop / anvil / crafting table so the
+// travel panel can teleport back to them. "Last known" = latest level seen.
+function recordKnownTravel(){
+  for(const[key,sp] of Object.entries(specials)){
+    if(!seen.has(key))continue;
+    let type=null;
+    if(sp.kind==='shop')type='shop';
+    else if(sp.kind==='station'&&sp.station==='anvil')type='anvil';
+    else if(sp.kind==='station'&&sp.station==='table')type='table';
+    if(!type)continue;
+    const[x,y]=key.split(',').map(Number);
+    G.travel[type]={level:G.level,x,y};
+  }
 }
 
 // ── Game state ────────────────────────────────────────────────
@@ -2091,6 +2111,7 @@ const G={
   hackBonus:null,minigame:null,
   logScroll:0,logFilterIdx:0,invCursor:0,invScroll:0,craftCursor:0,craftScroll:0,gemCursor:0,gemScroll:0,shopCursor:0,shopScroll:0,  hackCursor:0,hackScroll:0,
   secretsCursor:0,secretsScroll:0,
+  travel:{shop:null,anvil:null,table:null},travelCursor:0,travelConfirm:null,
   termShell:null,
   personality:{luck:3,charm:3,wit:3,nerve:3},
   console:null,consoleCursor:0,consoleInvCursor:0,consoleFocus:'slots',
@@ -2853,6 +2874,7 @@ function drawOverlay(){
   else if(G.overlay==='commands')drawCommands();
   else if(G.overlay==='journal')drawJournal();
   else if(G.overlay==='secrets')drawSecrets();
+  else if(G.overlay==='travel')drawTravel();
   else if(G.overlay==='inventory')drawInventory();
   else if(G.overlay==='craft')drawCraft();
   else if(G.overlay==='shop')drawShop();
@@ -3255,7 +3277,8 @@ function drawCommands(){
     ['0 — portable console rig (upgrade loot & hacks)',M.sub,2],
     ['t or / — command prompt  u — skills  m — minimap',M.sub,2],
     ['term / terminal — shell on adjacent ! terminal',M.sub,2],
-    ['n — journal  8 — secrets  o — log panel  c — commands  ? — help  q — quit',M.sub,2],
+    ['n — journal  8 — secrets  9 — fast travel  o — log panel  c — commands  ? — help  q — quit',M.sub,2],
+    ['9 — fast-travel panel: teleport to last-seen shop / anvil / crafting table',M.sub,2],
     ['Log panel (o): f or TERM/SEC/WORLD filters terminal output',M.sub,2],
     ['Map terminals: ! locked  + cred-unlock  * secret held  R rooted',M.sub,2],
     ['v — stealth  z — shoot mode  f — confront',M.sub,2],
@@ -3397,6 +3420,66 @@ function drawSecrets(){
     }
   }
   overlayText([['---'],['Esc to close.',M.sub,2]],2,row+1);
+}
+
+function drawTravel(){
+  const cursor=Math.max(0,Math.min(G.travelCursor||0,TRAVEL_TYPES.length-1));
+  G.travelCursor=cursor;
+  if(G.travelConfirm){drawTravelConfirm();return;}
+  let row=overlayText([
+    ['═══ FAST TRAVEL ═══',M.lav,2],
+    [`Now on level ${G.level}.  ↑↓ select · Enter teleport`,M.sub,2],
+    ['---']
+  ]);
+  const listStartRow=row;
+  const rowH=overlayCh()*2;
+  for(let i=0;i<TRAVEL_TYPES.length;i++){
+    const t=TRAVEL_TYPES[i];
+    const dest=G.travel[t.key];
+    const hl=i===cursor;
+    const known=!!dest;
+    const head=`${hl?'▶':' '} ${t.glyph}  ${t.label}`;
+    row=overlayText([[head,known?(hl?M.yel:M.tea):M.s1,2]],2,row);
+    const detail=known
+      ?(dest.level===G.level?`     level ${dest.level} (this level)`:`     level ${dest.level}`)
+      :'     not discovered yet';
+    row=overlayText([[detail,known?M.sub:M.s1,2]],2,row);
+  }
+  registerOverlayList({startRow:listStartRow,rowH,scroll:0,len:TRAVEL_TYPES.length,visibleCount:TRAVEL_TYPES.length,
+    onSelect:idx=>{
+      G.travelCursor=idx;
+      const t=TRAVEL_TYPES[idx];
+      if(t&&G.travel[t.key])G.travelConfirm=t.key;
+      else addLog('That destination is not known yet.',M.red);
+      render();
+    }});
+  row=overlayText([['---']],2,row);
+  const sel=TRAVEL_TYPES[cursor];
+  if(sel&&!G.travel[sel.key])
+    row=overlayText([['Walk over a '+sel.label.toLowerCase()+' once to remember it.',M.s1,2]],2,row);
+  overlayText([['---'],['Enter — confirm teleport · Esc — close.',M.sub,2]],2,row+1);
+}
+function drawTravelConfirm(){
+  const type=G.travelConfirm;
+  const t=TRAVEL_TYPES.find(t=>t.key===type);
+  const dest=G.travel[type];
+  let row=overlayText([
+    ['═══ CONFIRM TELEPORT ═══',M.lav,2],
+    [TOUCH_MODE?'YES / NO buttons above':'Enter/Y — confirm · N/Esc — cancel',M.sub,2],
+    ['---']
+  ]);
+  if(t&&dest){
+    row=overlayText([
+      [`Destination: ${t.label}`,M.yel,2],
+      [`Location: level ${dest.level}${dest.level===G.level?' (this level)':''}`,M.tea,2],
+      ['---'],
+      ['You will be moved instantly and one turn will pass.',M.sub,2],
+      [`On arrival: ${t.hint}.`,M.sub,2]
+    ],2,row);
+  }else{
+    row=overlayText([['That destination is no longer available.',M.red,2]],2,row);
+  }
+  overlayText([['---'],['Teleporting costs a turn — enemies and heat advance.',M.s1,2]],2,row+1);
 }
 
 function invMeasureVisibleCount(entries,scroll,budget){
@@ -4691,6 +4774,23 @@ function updateCtxBar(){
           }));
           key('INSPECT','cp','x');
         }
+        key('ESC','cd','Escape');
+      }
+    } else if(ov==='travel'){
+      if(G.travelConfirm){
+        bar.appendChild(ctxBtn('YES ✓','cg',()=>doTravelTeleport(G.travelConfirm)));
+        bar.appendChild(ctxBtn('NO ✗','cr',()=>{G.travelConfirm=null;render();}));
+      }else{
+        TRAVEL_TYPES.forEach((t,i)=>{
+          const known=!!G.travel[t.key];
+          const cls=known?((G.travelCursor||0)===i?'cy':'cb'):'cd';
+          bar.appendChild(ctxBtn(t.label.split(' ')[0].toUpperCase(),cls,()=>{
+            G.travelCursor=i;
+            if(known)G.travelConfirm=t.key;
+            else addLog('That destination is not known yet.',M.red);
+            render();
+          }));
+        });
         key('ESC','cd','Escape');
       }
     } else if(ov==='shop'){
@@ -7740,6 +7840,50 @@ function currentShop(){
   }
   return null;
 }
+
+// ── Travel / teleport ─────────────────────────────────────────
+const TRAVEL_TYPES=[
+  {key:'shop', label:'Shop (Quartermaster)', glyph:'%', hint:'press p to trade'},
+  {key:'anvil',label:'Anvil',                glyph:'A', hint:'press g to craft/socket'},
+  {key:'table',label:'Crafting Table',       glyph:'F', hint:'press g to craft'}
+];
+function travelWalkable(x,y){
+  if(x<0||x>=WW||y<0||y>=WH)return false;
+  return !BLOCK.has(grid[y][x]);
+}
+// Teleport to a remembered shop/anvil/table; lands on the tile (or an adjacent
+// free cell if something occupies it) so the spot is in interaction range.
+function teleportTravel(type){
+  const dest=G.travel[type];
+  if(!dest){addLog('No known destination of that kind yet.',M.red);return false;}
+  if(!levelStore[dest.level]){addLog('That place can no longer be reached.',M.red);return false;}
+  loadLevel(dest.level,dest.x,dest.y);
+  if(entityAt(G.px,G.py)){
+    let moved=false;
+    for(let dy=-1;dy<=1&&!moved;dy++)for(let dx=-1;dx<=1&&!moved;dx++){
+      if(!dx&&!dy)continue;
+      const nx=dest.x+dx,ny=dest.y+dy;
+      if(travelWalkable(nx,ny)&&!entityAt(nx,ny)){G.px=nx;G.py=ny;moved=true;}
+    }
+    computeVisible(visionRadius());
+  }
+  const t=TRAVEL_TYPES.find(t=>t.key===type);
+  addLog(`Fast-travelled to the ${t?t.label.toLowerCase():type} on level ${dest.level} — ${t?t.hint:''}.`,M.tea);
+  return true;
+}
+function openTravelPanel(){
+  G.overlay='travel';
+  G.travelConfirm=null;
+  // Start the cursor on the first known destination if any.
+  const firstKnown=TRAVEL_TYPES.findIndex(t=>G.travel[t.key]);
+  G.travelCursor=firstKnown>=0?firstKnown:0;
+}
+function doTravelTeleport(type){
+  const ok=teleportTravel(type);
+  G.travelConfirm=null;
+  G.overlay=null;
+  if(ok)endTurn();
+}
 function sellPrice(it){return Math.max(1,Math.floor(Number(it.valueCp||0)*0.6));}
 function sellEntries(){
   const arr=[...G.inventory.map(item=>({origin:'bag',item,slot:item.slot})),...G.backpackInv.map(item=>({origin:'backpack',item,slot:item.slot}))]
@@ -8216,6 +8360,7 @@ document.addEventListener('keydown',e=>{
   if(k==='u'||k==='U'){G.overlay='skills';render();return;}
   if(k==='n'||k==='N'){G.overlay='journal';render();return;}
   if(k==='8'){openSecretsOverlay();render();return;}
+  if(k==='9'){openTravelPanel();render();return;}
   if(k==='c'){G.overlay='commands';render();return;}
   if(k==='?'){G.overlay='help';render();return;}
   if(k==='l'||k==='L'){lookAround();render();return;}
@@ -8307,6 +8452,10 @@ function handleOverlayKey(e){
     cancelSocketConfirm();
     return;
   }
+  if(G.overlay==='travel'&&G.travelConfirm&&(e.key==='Escape'||e.key==='q'||e.key==='n'||e.key==='N')){
+    G.travelConfirm=null;
+    return;
+  }
   if(e.key==='Escape'||e.key==='q'){G.overlay=null;return;}
   if(G.overlay==='log'){
     const geo=logOverlayGeometry();
@@ -8328,6 +8477,20 @@ function handleOverlayKey(e){
     else if(e.key==='PageDown'||e.key===' ')G.secretsCursor=Math.min(Math.max(0,entries.length-1),(G.secretsCursor||0)+pg);
     else if(e.key==='Home')G.secretsCursor=0;
     else if(e.key==='End')G.secretsCursor=Math.max(0,entries.length-1);
+  } else if(G.overlay==='travel'){
+    if(G.travelConfirm){
+      if(e.key==='Enter'||e.key==='y'||e.key==='Y')doTravelTeleport(G.travelConfirm);
+      return;
+    }
+    if(e.key==='ArrowUp'||e.key==='k')G.travelCursor=Math.max(0,(G.travelCursor||0)-1);
+    else if(e.key==='ArrowDown'||e.key==='j')G.travelCursor=Math.min(TRAVEL_TYPES.length-1,(G.travelCursor||0)+1);
+    else if(e.key==='Home')G.travelCursor=0;
+    else if(e.key==='End')G.travelCursor=TRAVEL_TYPES.length-1;
+    else if(e.key==='Enter'){
+      const t=TRAVEL_TYPES[G.travelCursor||0];
+      if(t&&G.travel[t.key])G.travelConfirm=t.key;
+      else addLog('That destination is not known yet.',M.red);
+    }
   } else if(G.overlay==='inventory'){
     const entries=inventoryEntries();
     const layout=invPanelLayout(entries,G.invCursor||0);
@@ -8711,11 +8874,14 @@ function packGForSave(){
     console:G.console?JSON.parse(JSON.stringify(G.console)):null,
     nextRestockTurn:G.nextRestockTurn,difficultyMult:G.difficultyMult,
     showMinimap:G.showMinimap,invView:G.invView,shopMode:G.shopMode,
+    travel:JSON.parse(JSON.stringify(G.travel||{shop:null,anvil:null,table:null})),
     _lastStoryTier:G._lastStoryTier,_pivotFreeLvl:G._pivotFreeLvl
   };
 }
 function applyGFromSave(p){
   Object.assign(G,p);
+  G.travel=p.travel||{shop:null,anvil:null,table:null};
+  G.travelConfirm=null;
   G.modules=new Set(p.modules||[]);
   G.tools=new Set(p.tools||[]);
   G.resources={
@@ -8894,7 +9060,7 @@ function handleMapDrag(e,g){
 }
 // Overlays whose cursor/scroll is driven by Arrow keys → support drag-to-scroll.
 const SCROLL_OVERLAYS=new Set(['log','inventory','craft','shop','hack','module_select','term_shell','secrets']);
-const TAP_SELECT_OVERLAYS=new Set(['archetype','difficulty']);
+const TAP_SELECT_OVERLAYS=new Set(['archetype','difficulty','travel']);
 let _gesture=null,_ovScroll=null;
 canvas.addEventListener('pointerdown',e=>{
   if(G.overlay==='minigame'){_gesture=null;_ovScroll=null;return;}
