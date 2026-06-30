@@ -2113,6 +2113,7 @@ const G={
   logScroll:0,logFilterIdx:0,invCursor:0,invScroll:0,craftCursor:0,craftScroll:0,gemCursor:0,gemScroll:0,shopCursor:0,shopScroll:0,  hackCursor:0,hackScroll:0,
   secretsCursor:0,secretsScroll:0,
   travel:{shop:null,anvil:null,table:null},travelCursor:0,travelConfirm:null,
+  slotPick:null,_loadMsg:'',
   termShell:null,
   personality:{luck:3,charm:3,wit:3,nerve:3},
   console:null,consoleCursor:0,consoleInvCursor:0,consoleFocus:'slots',
@@ -2911,7 +2912,8 @@ function drawOverlay(){
   ensureOverlayArea();
   ctx.save();ctx.translate(0,OV_TOP);
   ctx.beginPath();ctx.rect(0,0,CAN_W,OV_H);ctx.clip();
-  if(G.overlay==='archetype')drawArchetype();
+  if(G.overlay==='title')drawTitle();
+  else if(G.overlay==='archetype')drawArchetype();
   else if(G.overlay==='resume')drawResume();
   else if(G.overlay==='difficulty')drawDifficulty();
   else if(G.overlay==='story')drawStory();
@@ -3061,15 +3063,97 @@ function confirmDifficulty(){
   render();
 }
 
+// ── Title / splash screen ─────────────────────────────────────
+const HACKER_ART=[
+"                          :-==-:",
+"                       .+*-::::-=*-",
+"                     .*=...::::.:::=*:",
+"              ...::.=+::.....::::.::::++::",
+"           :=+=-:::+#-.::.::::::.  ..::::-+",
+"          :+::.::::%%%*:......       .::::*",
+"          :*:...::::*%%%#*:         ..:::=+",
+"           -+:.....:::+%%%%%#=.     ..:::+:",
+"            .++:.....::::+*#%%%%#*=:::::-*=.",
+"             :+%*-......::::=+*#%%%%%%%%%+:+=.",
+"           .=****%**=.......:::::==++***+:::-+:",
+"          .=*****#: .-**:.......:::::::::::::==",
+"          .+*******      -#*=:........:.::::-*:",
+"           -*****#*:         =%%%#*+=====+*+:",
+"            .=*#%*-         .*######*:",
+"                            =*######=.",
+"             .-+**##*##############*-",
+"          :*#*#####%%%%%%%%%%######+:",
+"       .-*##%%%%%#*=-:.    =#######=",
+"      .=#%%%%%%*-.        :*#####%*:",
+"      -#%%%%%#*.          -*#%%%%#+.",
+"     .=%%%%%%*:          :*#%%%#%*-",
+"      -#%%%%%*          .+#%%%%%#*.",
+"      .=%%%%%%=.      .-*#%%%%%%#=",
+"       .:#%%%%%#+====+*%%%%%%%%%*:",
+"          :*%%%%%%%%%%%%%**%%%%%#= . .",
+". . . . .. ..:-+*###*+-:...+%%%%%%####-..............",
+".................:.:.::::::::*%%%%%%%%*:.............",
+"......::::::::::::::::::::::---=++++==:::.......... ."
+];
+function drawTitle(){
+  ctx.fillStyle=M.crust;ctx.fillRect(0,0,CAN_W,CAN_H);
+  ctx.textAlign='left';ctx.textBaseline='top';
+  const lines=HACKER_ART;
+  // Scale the monospace font so the widest line fits the window width AND the
+  // whole block fits the height — fillText never wraps, so this avoids overflow.
+  const trial=24;
+  ctx.font=`${trial}px 'Courier New',monospace`;
+  let widest=1;for(const l of lines){const w=ctx.measureText(l).width;if(w>widest)widest=w;}
+  const availW=CAN_W*0.9,availH=CAN_H*0.58;
+  let fpx=trial*Math.min(availW/widest,availH/(lines.length*trial*1.15));
+  fpx=Math.max(5,Math.min(28,fpx));
+  ctx.font=`${fpx}px 'Courier New',monospace`;
+  const lineH=fpx*1.15;
+  let w2=1;for(const l of lines){const w=ctx.measureText(l).width;if(w>w2)w2=w;}
+  const x0=Math.max(2,(CAN_W-w2)/2);          // single origin keeps the art aligned
+  const topY=Math.max(8,CAN_H*0.05);
+  ctx.fillStyle=M.grn;
+  for(let i=0;i<lines.length;i++)ctx.fillText(lines[i],x0,topY+i*lineH);
+  let y=topY+lines.length*lineH+lineH*0.5;
+  const ctr=(txt)=>{ctx.fillText(txt,(CAN_W-ctx.measureText(txt).width)/2,y);};
+  const tfs=Math.max(14,Math.min(44,Math.floor(CAN_W*0.075)));
+  ctx.font=`bold ${tfs}px 'Courier New',monospace`;ctx.fillStyle=M.tea;ctr('ARTHACK');y+=tfs*1.25;
+  const sfs=Math.max(10,Math.min(18,Math.floor(CAN_W*0.028)));
+  ctx.font=`${sfs}px 'Courier New',monospace`;ctx.fillStyle=M.sub;ctr('D U N G E O N   E S C A P E');y+=sfs*2.1;
+  let saves=0;for(let i=0;i<RUN_SLOT_COUNT;i++)if(peekRunSave(i))saves++;
+  ctx.fillStyle=M.lav;ctr(TOUCH_MODE?'Tap NEW GAME or LOAD below':'[N] New Game        [L] Load Game');
+  if(saves>0){y+=sfs*1.7;ctx.fillStyle=M.s1;ctr(`${saves} saved run${saves>1?'s':''} on this device`);}
+}
+function handleTitleKey(e){
+  if(e.key==='n'||e.key==='N'){titleNewGame();return;}
+  if(e.key==='l'||e.key==='L'){titleLoad();return;}
+  if(e.key==='Enter'){(hasRunSave()?titleLoad:titleNewGame)();return;}
+  render();
+}
+function titleNewGame(){
+  G.slotPick=null;
+  let empty=-1;for(let i=0;i<RUN_SLOT_COUNT;i++)if(!peekRunSave(i)){empty=i;break;}
+  if(empty<0){G.overlay='resume';G._resumeCursor=0;addLog('All save slots are full — pick one to overwrite for a new run.',M.yel);render();return;}
+  _activeRunSlot=empty;
+  resetPanelSaveTrack();
+  G.overlay='archetype';G._archCursor=0;G._archScroll=0;render();
+}
+function titleLoad(){
+  G.slotPick=null;G._loadMsg='';
+  G.overlay='resume';G._resumeCursor=firstOccupiedRunSlot();render();
+}
 function drawResume(){
   const slots=RUN_SLOT_COUNT;
   const cur=Math.max(0,Math.min(G._resumeCursor??firstOccupiedRunSlot(),slots-1));
   G._resumeCursor=cur;
+  const picking=G.slotPick==='import';
   let row=overlayText([
-    ['═══  SAVED RUNS  ═══',M.lav,2],
-    [TOUCH_MODE?'Tap slot · CONTINUE / NEW / DELETE below':'↑↓ select slot · 1-4 pick · Enter continue · N new · Del erase',M.sub,2],
+    [picking?'═══  IMPORT — CHOOSE SLOT  ═══':'═══  SAVED RUNS  ═══',M.lav,2],
+    [picking?(TOUCH_MODE?'Tap a slot · IMPORT HERE / CANCEL below':'↑↓ select slot · Enter import here · Esc cancel')
+            :(TOUCH_MODE?'Tap slot · CONTINUE / NEW / EXPORT / IMPORT / DELETE below':'↑↓ select · Enter continue · N new · E export · I import · Del erase'),M.sub,2],
     ['---']
   ]);
+  if(G._loadMsg)row=overlayText([['! '+G._loadMsg,M.red,2],['---']],2,row);
   const listStartRow=row;
   for(let i=0;i<slots;i++){
     const info=peekRunSave(i);
@@ -3085,14 +3169,24 @@ function drawResume(){
   }
   registerOverlayList({startRow:listStartRow,rowH:overlayCh()*2,scroll:0,len:slots,visibleCount:slots,
     onSelect:idx=>{G._resumeCursor=idx;render();}});
-  row=overlayText([
-    ['---'],
-    ['Autosave on panel open/close and loot pickup · 4 slots.',M.s1,2],
-    [peekRunSave(cur)?(TOUCH_MODE?'CONTINUE loads highlighted slot.':'Enter / C = continue highlighted slot.'):(TOUCH_MODE?'NEW GAME starts in highlighted slot.':'Enter / N = new game in highlighted slot.'),M.sub,2]
-  ],2,row);
+  if(picking){
+    const occ=peekRunSave(cur);
+    row=overlayText([
+      ['---'],
+      [occ?`Slot ${cur+1} holds a save — importing here will OVERWRITE it.`:`Slot ${cur+1} is empty — the imported run will fill it.`,occ?M.yel:M.sub,2],
+      ['Enter / IMPORT HERE = pick a .arthack file · Esc = cancel.',M.sub,2]
+    ],2,row);
+  }else{
+    row=overlayText([
+      ['---'],
+      ['Autosave on panel open/close and loot pickup · 4 slots · EXPORT/IMPORT .arthack files.',M.s1,2],
+      [peekRunSave(cur)?(TOUCH_MODE?'CONTINUE loads highlighted slot.':'Enter / C = continue highlighted slot.'):(TOUCH_MODE?'NEW GAME starts in highlighted slot.':'Enter / N = new game in highlighted slot.'),M.sub,2]
+    ],2,row);
+  }
 }
 function continueRunSave(slot){
   const s=slot??G._resumeCursor??0;
+  G.slotPick=null;
   if(!loadRunState(s)){clearRunState(s);resetPanelSaveTrack();G.overlay='archetype';G._archCursor=0;G._archScroll=0;return false;}
   G.overlay=null;
   resetPanelSaveTrack(null);
@@ -3102,6 +3196,7 @@ function continueRunSave(slot){
 }
 function beginNewRunSetup(slot){
   const s=slot??G._resumeCursor??0;
+  G.slotPick=null;
   if(peekRunSave(s)&&!confirm(`Overwrite save slot ${s+1}?`))return;
   clearRunState(s);
   _activeRunSlot=s;
@@ -3113,6 +3208,14 @@ function beginNewRunSetup(slot){
 function handleResumeKey(e){
   const slots=RUN_SLOT_COUNT;
   const cur=G._resumeCursor??0;
+  if(G.slotPick==='import'){
+    if(e.key==='Escape'||e.key==='q'){G.slotPick=null;render();return;}
+    if(e.key>='1'&&e.key<=String(slots)){G._resumeCursor=+e.key-1;render();return;}
+    if(e.key==='ArrowUp'||e.key==='w'||e.key==='k')G._resumeCursor=Math.max(0,cur-1);
+    else if(e.key==='ArrowDown'||e.key==='s'||e.key==='j')G._resumeCursor=Math.min(slots-1,cur+1);
+    else if(e.key==='Enter'){slotPickConfirm();return;}
+    render();return;
+  }
   if(e.key>='1'&&e.key<=String(slots)){G._resumeCursor=+e.key-1;render();return;}
   if(e.key==='ArrowUp'||e.key==='w'||e.key==='k')G._resumeCursor=Math.max(0,cur-1);
   else if(e.key==='ArrowDown'||e.key==='s'||e.key==='j')G._resumeCursor=Math.min(slots-1,cur+1);
@@ -3129,6 +3232,8 @@ function handleResumeKey(e){
     return;
   }
   else if(e.key==='n'||e.key==='N')beginNewRunSetup(cur);
+  else if(e.key==='e'||e.key==='E'){if(peekRunSave(cur))exportRunSave(cur);return;}
+  else if(e.key==='i'||e.key==='I'){promptImportRunSave(cur);return;}
   render();
 }
 
@@ -3335,6 +3440,7 @@ function drawCommands(){
     ['Map terminals: ! locked  + cred-unlock  * secret held  R rooted',M.sub,2],
     ['v — stealth  z — shoot mode  f — confront',M.sub,2],
     ['Typed: help inventory craft skills map journal secrets rest stealth shoot',M.sub,2],
+    ['Typed: export / import — download the run as a .arthack file or load one',M.sub,2],
     ['---'],
     ['TERMINAL COMMANDS (press t or / first):',M.yel,2],
     ['scan            list terminals within 18 tiles',M.sub,2],
@@ -4749,13 +4855,22 @@ function ctxBtn(label,cls,action){
   b.addEventListener('click',fire);
   return b;
 }
+// Mobile blocks file-chooser .click() unless it runs inside a genuine 'click'
+// event — touchstart+preventDefault (ctxBtn) suppresses that, so file-opening
+// buttons must bind a plain click handler only.
+function ctxFileBtn(label,cls,action){
+  const b=document.createElement('button');
+  b.textContent=label;b.className=cls;
+  b.addEventListener('click',e=>{if(e)e.preventDefault();action();});
+  return b;
+}
 
 function updateCtxBar(){
   const bar=document.getElementById('ctx-bar');
   if(!bar)return;
   bar.innerHTML='';
-  bar.classList.toggle('setup',G.overlay==='archetype'||G.overlay==='difficulty'||G.overlay==='story'||G.overlay==='return_reveal'||G.overlay==='resume');
-  bar.classList.toggle('panel',!!G.overlay&&G.overlay!=='archetype'&&G.overlay!=='difficulty'&&G.overlay!=='story'&&G.overlay!=='return_reveal'&&G.overlay!=='resume'&&TOUCH_MODE);
+  bar.classList.toggle('setup',G.overlay==='title'||G.overlay==='archetype'||G.overlay==='difficulty'||G.overlay==='story'||G.overlay==='return_reveal'||G.overlay==='resume');
+  bar.classList.toggle('panel',!!G.overlay&&G.overlay!=='title'&&G.overlay!=='archetype'&&G.overlay!=='difficulty'&&G.overlay!=='story'&&G.overlay!=='return_reveal'&&G.overlay!=='resume'&&TOUCH_MODE);
   const show=TOUCH_MODE||true; // show on all devices; hide via CSS if desired
   if(!show){bar.style.display='none';return;}
   bar.style.display='flex';
@@ -4768,16 +4883,29 @@ function updateCtxBar(){
   if(G.overlay){
     const ov=G.overlay;
     if(ov==='minigame'){mgCtxBarMinigame(bar,key);return;}
-    if(ov==='resume'){
-      for(let i=0;i<RUN_SLOT_COUNT;i++)
-        bar.appendChild(ctxBtn(String(i+1),G._resumeCursor===i?'cy':'cb',()=>{G._resumeCursor=i;render();}));
-      if(peekRunSave(G._resumeCursor??0))
-        bar.appendChild(ctxBtn('CONTINUE','cg',()=>continueRunSave()));
-      else
-        bar.appendChild(ctxBtn('NEW GAME','cg',()=>beginNewRunSetup()));
-      bar.appendChild(ctxBtn('NEW','cr',()=>beginNewRunSetup()));
-      if(peekRunSave(G._resumeCursor??0))
-        bar.appendChild(ctxBtn('DELETE','cr',()=>{if(confirm(`Delete slot ${(G._resumeCursor??0)+1}?`)){clearRunState(G._resumeCursor??0);if(!hasRunSave()){G.overlay='archetype';G._archCursor=0;G._archScroll=0;}render();}}));
+    if(ov==='title'){
+      bar.appendChild(ctxBtn('NEW GAME','cg',()=>titleNewGame()));
+      bar.appendChild(ctxBtn(hasRunSave()?'LOAD GAME':'LOAD / IMPORT','cb',()=>titleLoad()));
+    } else if(ov==='resume'){
+      if(G.slotPick==='import'){
+        for(let i=0;i<RUN_SLOT_COUNT;i++)
+          bar.appendChild(ctxBtn(String(i+1),G._resumeCursor===i?'cy':'cb',()=>{G._resumeCursor=i;render();}));
+        bar.appendChild(ctxFileBtn('IMPORT HERE','cg',()=>slotPickConfirm()));
+        bar.appendChild(ctxBtn('CANCEL','cd',()=>{G.slotPick=null;render();}));
+      }else{
+        for(let i=0;i<RUN_SLOT_COUNT;i++)
+          bar.appendChild(ctxBtn(String(i+1),G._resumeCursor===i?'cy':'cb',()=>{G._resumeCursor=i;render();}));
+        if(peekRunSave(G._resumeCursor??0))
+          bar.appendChild(ctxBtn('CONTINUE','cg',()=>continueRunSave()));
+        else
+          bar.appendChild(ctxBtn('NEW GAME','cg',()=>beginNewRunSetup()));
+        bar.appendChild(ctxBtn('NEW','cr',()=>beginNewRunSetup()));
+        if(peekRunSave(G._resumeCursor??0))
+          bar.appendChild(ctxBtn('EXPORT','cp',()=>exportRunSave(G._resumeCursor??0)));
+        bar.appendChild(ctxBtn('IMPORT','cb',()=>promptImportRunSave(G._resumeCursor??0)));
+        if(peekRunSave(G._resumeCursor??0))
+          bar.appendChild(ctxBtn('DELETE','cr',()=>{if(confirm(`Delete slot ${(G._resumeCursor??0)+1}?`)){clearRunState(G._resumeCursor??0);if(!hasRunSave()){G.overlay='archetype';G._archCursor=0;G._archScroll=0;}render();}}));
+      }
     } else if(ov==='archetype'){
       const pg=archetypePageSize(),start=G._archScroll||0;
       if(start>0)bar.appendChild(ctxBtn('◀','cb',()=>{G._archScroll=Math.max(0,start-pg);G._archCursor=Math.max(G._archCursor||0,G._archScroll);render();}));
@@ -8225,6 +8353,8 @@ function processCmd(cmd){
   if(low==='craft'||low==='crafting'){openCraftPanel();return;}
   if(low==='skills'||low==='skill'){G.overlay='skills';return;}
   if(low==='map'||low==='minimap'){openMapPanel();return;}
+  if(low==='export'||low==='download'||low==='savefile'){if(levelStore.length)saveRunState();exportRunSave(_activeRunSlot);return;}
+  if(low==='import'||low==='loadfile'){promptImportRunSave(_activeRunSlot);return;}
   if(low==='journal'||low==='notes'){G.overlay='journal';return;}
   if(low==='secrets'||low==='secret'||low==='creds'){openSecretsOverlay();return;}
   if(low==='rest'||low==='wait'){addLog('You rest and listen to the castle.',M.sub);endTurn();return;}
@@ -8392,6 +8522,7 @@ function processCmd(cmd){
 const inp=document.getElementById('inp');
 
 document.addEventListener('keydown',e=>{
+  if(G.overlay==='title'){handleTitleKey(e);return;}
   if(G.overlay==='resume'){handleResumeKey(e);return;}
   if(G.overlay==='archetype'){handleArchKey(e);return;}
   if(G.overlay==='difficulty'){handleDifficultyKey(e);return;}
@@ -8984,7 +9115,7 @@ function packRunSave(){
 }
 function peekRunSave(slot){
   try{
-    const raw=localStorage.getItem(runSlotKey(slot));
+    const raw=readSlotText(slot);
     if(!raw)return null;
     const data=parseRunSave(raw);
     if(!data?.G)return null;
@@ -9002,11 +9133,198 @@ function clearRunState(slot=_activeRunSlot){
   idx.slots[slot]=null;
   saveRunIndex(idx);
 }
+// ── LZ compression for saves (lz-string compressToUTF16/decompressFromUTF16) ──
+// A full run serialises to ~2MB of JSON; localStorage stores UTF-16 (2 bytes/char)
+// so an uncompressed save can blow past mobile's ~5MB quota. Compress on the way
+// in and out. (Canonical lz-string algorithm, UTF-16 variant.)
+const LZString=(function(){
+  const f=String.fromCharCode;
+  function _compress(uncompressed,bitsPerChar,getCharFromInt){
+    if(uncompressed==null)return"";
+    let i,value,context_dictionary={},context_dictionaryToCreate={},context_c="",context_wc="",context_w="",
+      context_enlargeIn=2,context_dictSize=3,context_numBits=2,context_data=[],context_data_val=0,context_data_position=0,ii;
+    for(ii=0;ii<uncompressed.length;ii+=1){
+      context_c=uncompressed.charAt(ii);
+      if(!Object.prototype.hasOwnProperty.call(context_dictionary,context_c)){context_dictionary[context_c]=context_dictSize++;context_dictionaryToCreate[context_c]=true;}
+      context_wc=context_w+context_c;
+      if(Object.prototype.hasOwnProperty.call(context_dictionary,context_wc)){context_w=context_wc;}
+      else{
+        if(Object.prototype.hasOwnProperty.call(context_dictionaryToCreate,context_w)){
+          if(context_w.charCodeAt(0)<256){
+            for(i=0;i<context_numBits;i++){context_data_val=(context_data_val<<1);if(context_data_position==bitsPerChar-1){context_data_position=0;context_data.push(getCharFromInt(context_data_val));context_data_val=0;}else{context_data_position++;}}
+            value=context_w.charCodeAt(0);
+            for(i=0;i<8;i++){context_data_val=(context_data_val<<1)|(value&1);if(context_data_position==bitsPerChar-1){context_data_position=0;context_data.push(getCharFromInt(context_data_val));context_data_val=0;}else{context_data_position++;}value=value>>1;}
+          }else{
+            value=1;
+            for(i=0;i<context_numBits;i++){context_data_val=(context_data_val<<1)|value;if(context_data_position==bitsPerChar-1){context_data_position=0;context_data.push(getCharFromInt(context_data_val));context_data_val=0;}else{context_data_position++;}value=0;}
+            value=context_w.charCodeAt(0);
+            for(i=0;i<16;i++){context_data_val=(context_data_val<<1)|(value&1);if(context_data_position==bitsPerChar-1){context_data_position=0;context_data.push(getCharFromInt(context_data_val));context_data_val=0;}else{context_data_position++;}value=value>>1;}
+          }
+          context_enlargeIn--;if(context_enlargeIn==0){context_enlargeIn=Math.pow(2,context_numBits);context_numBits++;}
+          delete context_dictionaryToCreate[context_w];
+        }else{
+          value=context_dictionary[context_w];
+          for(i=0;i<context_numBits;i++){context_data_val=(context_data_val<<1)|(value&1);if(context_data_position==bitsPerChar-1){context_data_position=0;context_data.push(getCharFromInt(context_data_val));context_data_val=0;}else{context_data_position++;}value=value>>1;}
+        }
+        context_enlargeIn--;if(context_enlargeIn==0){context_enlargeIn=Math.pow(2,context_numBits);context_numBits++;}
+        context_dictionary[context_wc]=context_dictSize++;context_w=String(context_c);
+      }
+    }
+    if(context_w!==""){
+      if(Object.prototype.hasOwnProperty.call(context_dictionaryToCreate,context_w)){
+        if(context_w.charCodeAt(0)<256){
+          for(i=0;i<context_numBits;i++){context_data_val=(context_data_val<<1);if(context_data_position==bitsPerChar-1){context_data_position=0;context_data.push(getCharFromInt(context_data_val));context_data_val=0;}else{context_data_position++;}}
+          value=context_w.charCodeAt(0);
+          for(i=0;i<8;i++){context_data_val=(context_data_val<<1)|(value&1);if(context_data_position==bitsPerChar-1){context_data_position=0;context_data.push(getCharFromInt(context_data_val));context_data_val=0;}else{context_data_position++;}value=value>>1;}
+        }else{
+          value=1;
+          for(i=0;i<context_numBits;i++){context_data_val=(context_data_val<<1)|value;if(context_data_position==bitsPerChar-1){context_data_position=0;context_data.push(getCharFromInt(context_data_val));context_data_val=0;}else{context_data_position++;}value=0;}
+          value=context_w.charCodeAt(0);
+          for(i=0;i<16;i++){context_data_val=(context_data_val<<1)|(value&1);if(context_data_position==bitsPerChar-1){context_data_position=0;context_data.push(getCharFromInt(context_data_val));context_data_val=0;}else{context_data_position++;}value=value>>1;}
+        }
+        context_enlargeIn--;if(context_enlargeIn==0){context_enlargeIn=Math.pow(2,context_numBits);context_numBits++;}
+        delete context_dictionaryToCreate[context_w];
+      }else{
+        value=context_dictionary[context_w];
+        for(i=0;i<context_numBits;i++){context_data_val=(context_data_val<<1)|(value&1);if(context_data_position==bitsPerChar-1){context_data_position=0;context_data.push(getCharFromInt(context_data_val));context_data_val=0;}else{context_data_position++;}value=value>>1;}
+      }
+      context_enlargeIn--;if(context_enlargeIn==0){context_enlargeIn=Math.pow(2,context_numBits);context_numBits++;}
+    }
+    value=2;
+    for(i=0;i<context_numBits;i++){context_data_val=(context_data_val<<1)|(value&1);if(context_data_position==bitsPerChar-1){context_data_position=0;context_data.push(getCharFromInt(context_data_val));context_data_val=0;}else{context_data_position++;}value=value>>1;}
+    while(true){context_data_val=(context_data_val<<1);if(context_data_position==bitsPerChar-1){context_data.push(getCharFromInt(context_data_val));break;}else context_data_position++;}
+    return context_data.join('');
+  }
+  function _decompress(length,resetValue,getNextValue){
+    let dictionary=[],enlargeIn=4,dictSize=4,numBits=3,entry="",result=[],i,w,bits,resb,maxpower,power,c,
+      data={val:getNextValue(0),position:resetValue,index:1};
+    for(i=0;i<3;i+=1){dictionary[i]=i;}
+    bits=0;maxpower=Math.pow(2,2);power=1;
+    while(power!=maxpower){resb=data.val&data.position;data.position>>=1;if(data.position==0){data.position=resetValue;data.val=getNextValue(data.index++);}bits|=(resb>0?1:0)*power;power<<=1;}
+    switch(bits){
+      case 0:bits=0;maxpower=Math.pow(2,8);power=1;while(power!=maxpower){resb=data.val&data.position;data.position>>=1;if(data.position==0){data.position=resetValue;data.val=getNextValue(data.index++);}bits|=(resb>0?1:0)*power;power<<=1;}c=f(bits);break;
+      case 1:bits=0;maxpower=Math.pow(2,16);power=1;while(power!=maxpower){resb=data.val&data.position;data.position>>=1;if(data.position==0){data.position=resetValue;data.val=getNextValue(data.index++);}bits|=(resb>0?1:0)*power;power<<=1;}c=f(bits);break;
+      case 2:return"";
+    }
+    dictionary[3]=c;w=c;result.push(c);
+    while(true){
+      if(data.index>length){return"";}
+      bits=0;maxpower=Math.pow(2,numBits);power=1;
+      while(power!=maxpower){resb=data.val&data.position;data.position>>=1;if(data.position==0){data.position=resetValue;data.val=getNextValue(data.index++);}bits|=(resb>0?1:0)*power;power<<=1;}
+      switch(c=bits){
+        case 0:bits=0;maxpower=Math.pow(2,8);power=1;while(power!=maxpower){resb=data.val&data.position;data.position>>=1;if(data.position==0){data.position=resetValue;data.val=getNextValue(data.index++);}bits|=(resb>0?1:0)*power;power<<=1;}dictionary[dictSize++]=f(bits);c=dictSize-1;enlargeIn--;break;
+        case 1:bits=0;maxpower=Math.pow(2,16);power=1;while(power!=maxpower){resb=data.val&data.position;data.position>>=1;if(data.position==0){data.position=resetValue;data.val=getNextValue(data.index++);}bits|=(resb>0?1:0)*power;power<<=1;}dictionary[dictSize++]=f(bits);c=dictSize-1;enlargeIn--;break;
+        case 2:return result.join('');
+      }
+      if(enlargeIn==0){enlargeIn=Math.pow(2,numBits);numBits++;}
+      if(dictionary[c]){entry=dictionary[c];}else{if(c===dictSize){entry=w+w.charAt(0);}else{return null;}}
+      result.push(entry);
+      dictionary[dictSize++]=w+entry.charAt(0);enlargeIn--;
+      w=entry;
+      if(enlargeIn==0){enlargeIn=Math.pow(2,numBits);numBits++;}
+    }
+  }
+  return{
+    compressToUTF16:function(input){if(input==null)return"";return _compress(input,15,function(a){return f(a+32);})+" ";},
+    decompressFromUTF16:function(compressed){if(compressed==null)return"";if(compressed=="")return null;return _decompress(compressed.length,16384,function(index){return compressed.charCodeAt(index)-32;});}
+  };
+})();
+const SAVE_LZ_PREFIX='LZ';
+function writeSlotText(slot,jsonText){
+  let stored;
+  try{stored=SAVE_LZ_PREFIX+LZString.compressToUTF16(jsonText);}catch{stored=jsonText;}
+  localStorage.setItem(runSlotKey(slot),stored);
+}
+function readSlotText(slot){
+  const v=localStorage.getItem(runSlotKey(slot));
+  if(v==null)return null;
+  if(v.slice(0,SAVE_LZ_PREFIX.length)===SAVE_LZ_PREFIX)return LZString.decompressFromUTF16(v.slice(SAVE_LZ_PREFIX.length));
+  return v; // legacy uncompressed save
+}
 // Sets (e.g. terminal _exploredPre/_exploredPost) become {} under plain
 // JSON.stringify, which corrupts the save. Encode/decode them so they survive.
 function runSaveReplacer(k,v){return v instanceof Set?{__t:'Set',v:[...v]}:v;}
 function runSaveReviver(k,v){return v&&v.__t==='Set'&&Array.isArray(v.v)?new Set(v.v):v;}
 function parseRunSave(raw){return JSON.parse(raw,runSaveReviver);}
+
+// ── Export / import save files (.arthack) ─────────────────────
+function runSaveFilename(slot){
+  const m=peekRunSave(slot);
+  const arch=(m&&m.archetype)||'run';
+  const parts=['arthack',arch];
+  if(m){parts.push('L'+((m.level??0)+1),'t'+(m.turn||0));}
+  return parts.join('-').replace(/[^a-z0-9\-_]+/gi,'_')+'.arthack';
+}
+function exportRunSave(slot){
+  const raw=readSlotText(slot);   // decompressed JSON — portable, re-importable
+  if(!raw){addLog('That slot is empty — nothing to export.',M.red);render();return;}
+  let name=runSaveFilename(slot);
+  try{const n=prompt('Download save as:',name);if(n===null){render();return;}name=(n.trim()||name);}catch{}
+  if(!/\.arthack$/i.test(name))name=name.replace(/\.(json|txt)$/i,'')+'.arthack';
+  try{
+    const blob=new Blob([raw],{type:'application/json'});
+    const url=URL.createObjectURL(blob);
+    const a=document.createElement('a');
+    a.href=url;a.download=name;a.style.display='none';
+    document.body.appendChild(a);a.click();
+    setTimeout(()=>{URL.revokeObjectURL(url);a.remove();},0);
+    addLog(`Exported save to ${name}.`,M.grn);
+  }catch(e){addLog('Export failed: '+e.message,M.red);}
+  render();
+}
+let _importInput=null,_importSlot=0;
+function ensureImportInput(){
+  if(_importInput)return _importInput;
+  const el=document.createElement('input');
+  el.type='file';el.id='arthack-import-file';
+  // No 'accept' filter: mobile pickers often grey out custom .arthack extensions.
+  // It's activated by a <label for> (reliable on mobile), so it can stay hidden.
+  el.style.cssText='position:fixed;left:-9999px;top:0;width:1px;height:1px;opacity:0';
+  el.addEventListener('change',()=>{
+    const file=el.files&&el.files[0];el.value='';
+    if(!file){G._loadMsg='No file selected.';G.overlay='resume';render();return;}
+    const reader=new FileReader();
+    reader.onload=()=>importRunSaveText(String(reader.result||''),_importSlot);
+    reader.onerror=()=>{G._loadMsg='Could not read that file.';G.overlay='resume';render();};
+    reader.readAsText(file);
+  });
+  document.body.appendChild(el);
+  _importInput=el;return el;
+}
+// Open the slot picker (a panel over the load screen) to choose where to import.
+function promptImportRunSave(slot){
+  G.overlay='resume';
+  G.slotPick='import';
+  G._loadMsg='';
+  G._resumeCursor=Math.max(0,Math.min(slot??G._resumeCursor??0,RUN_SLOT_COUNT-1));
+  render();
+}
+// Confirm the highlighted slot from the picker, then open the file chooser.
+function slotPickConfirm(){
+  const slot=Math.max(0,Math.min(G._resumeCursor??0,RUN_SLOT_COUNT-1));
+  G.slotPick=null;
+  G._loadMsg='';
+  _importSlot=slot;
+  // Open the chooser first, while still inside the user gesture (mobile is strict).
+  ensureImportInput().click();
+  render();
+}
+function importRunSaveText(text,slot){
+  // Failures are shown on the load screen (the game log is hidden there).
+  const fail=(msg)=>{G._loadMsg=msg;G.overlay='resume';G.slotPick=null;G._resumeCursor=Math.max(0,Math.min(slot,RUN_SLOT_COUNT-1));render();};
+  let data;
+  try{data=parseRunSave(text);}catch(e){fail(text?`Not valid JSON (${text.length} chars): ${String(e.message).slice(0,40)}`:'File was empty.');return;}
+  if(!data||!data.G){fail('No game data (G) in file.');return;}
+  if(!data.levelStore||!data.levelStore.length){fail('File has no level data.');return;}
+  if(data.v!==1&&data.v!==RUN_SAVE_VER){fail(`Unsupported save version: ${data.v}.`);return;}
+  try{writeSlotText(slot,text);}
+  catch(e){fail('Storage full — delete a save to free space, then retry.');return;}
+  const idx=loadRunIndex();idx.slots[slot]=runMetaFromData(data);saveRunIndex(idx);
+  G._loadMsg='';
+  addLog(`Imported save into slot ${slot+1}.`,M.grn);
+  // Load the imported run from its slot so the import takes effect immediately.
+  if(!continueRunSave(slot)){G._loadMsg='Imported, but the run failed to load (corrupt?).';G.overlay='resume';render();}
+}
 function saveRunState(){
   if(G.dead||G.won)return;
   if(!levelStore.length)return;
@@ -9015,12 +9333,12 @@ function saveRunState(){
   let blob;
   try{
     blob=packRunSave();
-    localStorage.setItem(runSlotKey(slot),JSON.stringify(blob,runSaveReplacer));
+    writeSlotText(slot,JSON.stringify(blob,runSaveReplacer));
   }catch(e){
     try{
       blob=packRunSave();
       blob.log=blob.log.slice(-80);
-      localStorage.setItem(runSlotKey(slot),JSON.stringify(blob,runSaveReplacer));
+      writeSlotText(slot,JSON.stringify(blob,runSaveReplacer));
     }catch{return;}
   }
   const idx=loadRunIndex();
@@ -9037,7 +9355,7 @@ window.addEventListener('pagehide',flushRunSave);
 window.addEventListener('beforeunload',flushRunSave);
 function loadRunState(slot=_activeRunSlot){
   try{
-    const raw=localStorage.getItem(runSlotKey(slot));
+    const raw=readSlotText(slot);
     if(!raw)return false;
     const data=parseRunSave(raw);
     if(!data?.G||!data.levelStore?.length)return false;
@@ -9144,7 +9462,7 @@ function handleMapDrag(e,g){
 }
 // Overlays whose cursor/scroll is driven by Arrow keys → support drag-to-scroll.
 const SCROLL_OVERLAYS=new Set(['log','inventory','craft','shop','hack','module_select','term_shell','secrets']);
-const TAP_SELECT_OVERLAYS=new Set(['archetype','difficulty','travel']);
+const TAP_SELECT_OVERLAYS=new Set(['archetype','difficulty','travel','resume']);
 let _gesture=null,_ovScroll=null;
 // ── Map overlay: drag to pan, pinch / wheel to zoom ───────────
 let _mapPtrs=new Map(),_mapPinch=null;
@@ -9300,13 +9618,25 @@ canvas.addEventListener('pointercancel',e=>{_gesture=null;_ovScroll=null;if(e)_m
 bindViewportListeners();
 
 // ── Init ──────────────────────────────────────────────────────
+// One-time: shrink saves written by older (uncompressed) builds so they stop
+// hogging the localStorage quota and leave room for new saves/imports.
+function recompressExistingSaves(){
+  for(let i=0;i<RUN_SLOT_COUNT;i++){
+    try{
+      const v=localStorage.getItem(runSlotKey(i));
+      if(v==null||v.slice(0,SAVE_LZ_PREFIX.length)===SAVE_LZ_PREFIX)continue;
+      const data=parseRunSave(v);
+      if(data&&data.G&&data.levelStore?.length)writeSlotText(i,v);
+    }catch{}
+  }
+}
 function init(){
   ctx.font=`${CH}px 'Courier New',monospace`;
   ctx.textBaseline='top';ctx.textAlign='left';
   migrateLegacyRunSave();
+  recompressExistingSaves();
   applyProfileUnlocks();
-  if(hasRunSave()){G.overlay='resume';G._resumeCursor=firstOccupiedRunSlot();}
-  else{G.overlay='archetype';G._archCursor=0;G._archScroll=0;}
+  G.overlay='title';
   render();
 }
 init();
