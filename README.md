@@ -74,7 +74,7 @@ Typical intrusion path:
 1. **Scan** the area (`scan`, or interact from the map).
 2. **Port scan** and **vuln scan** to see services and which tools you lack.
 3. **Hack** with a module loadout — or **instant root** if you already extracted that host's secret.
-4. After root: browse the shell, pull secrets, install **botnet** nodes, **pivot** elsewhere, **clear logs**, **practice** skills on the box.
+4. After root: browse the shell, pull secrets, install **botnet** nodes, **pivot** elsewhere, **clear logs**, **practice** skills on the box. Rooted **black-market** hosts also expose `blackmarket` for illicit module sales (heat surcharge).
 
 Use `t` / `/` for quick commands or `term` for a full SSH-style shell. Optional **minigames** after scans and hacks award bonus creds, heat relief, or loot. Double-tap a rooted terminal to queue the next shell command quickly.
 
@@ -88,7 +88,7 @@ Your **portable console rig** (`0`) matters here: eight slots (chassis, keyboard
 
 ### Equipment and gems
 
-Inventory covers weapons, armor, backpacks, rings, amulets, materials, modules, and potions. Backpacks set carry weight and pack capacity. Items are color-coded by **rarity**; sell and buy prices scale with rarity, quality, and how deep you are in the run.
+Inventory covers weapons, armor, backpacks, rings, amulets, materials, modules, potions, **gadgets**, and **consumables**. Backpacks set carry weight and pack capacity. Items are color-coded by **rarity**; sell and buy prices scale with rarity, quality, and how deep you are in the run (equip **Coin Purse** for +15% sell value).
 
 At an **anvil** (`A`), socket gems into almost anything:
 
@@ -102,9 +102,37 @@ At an **anvil** (`A`), socket gems into almost anything:
 
 ### Shops and loot
 
-Quartermasters stock dozens of items: gear, jewelry, potions, both gem types, console parts, modules, and cred stashes. Stock shuffles and restocks over time.
+Quartermasters stock dozens of items: gear, jewelry, potions, both gem types, console parts, modules, cred stashes, and **special gadgets**. Stock shuffles and restocks over time; you can **place buy orders** (pay 110% hold, item arrives on next restock) and earn **vendor loyalty** (2 / 5 / 10 purchases at the same quartermaster unlock 5% / 10% / 15% buy discounts). **`tradein <pack>`** upgrades your equipped backpack in-place at a shop with 50% trade credit.
+
+**Shop Link** (`%` gadget) opens the nearest or last-known quartermaster catalog remotely — uplink costs a turn when you are not adjacent. Press `p` when next to a shop, or `use shop link` from inventory.
+
+**Signature pack:** the rare **Bag of Holding** (+720 carry, 550 pack slots, 0 weight, 10,000 cp fixed) appears in every quartermaster restock.
 
 Loot stubs spawn from floors, chests, enemy drops, hacked caches, and vaults. Premium sources (locked hack chests, vaults) skew toward better rolls. **Luck, charm, wit, and nerve** — from archetype, rig parts, and socketed gems — feed directly into those rolls.
+
+### Special items and gadgets
+
+Purchasable from quartermasters (and some appear on restock rolls):
+
+| Item | Type | Effect |
+|------|------|--------|
+| Shop Link | gadget | Remote quartermaster catalog (nearest → cached vendor) |
+| Anvil Beacon | gadget | Remote craft / socket uplink to nearest or last-known anvil |
+| Loot Magnet | gadget | Toggle: auto-pickup loose loot in your current room each turn |
+| Bandolier | backpack | +8 pack slots, no carry bonus |
+| Mule Harness | backpack | +40 carry, no pack slots |
+| Coin Purse | amulet | +15% sell price when equipped |
+| Scrying Lens | consumable | One-use: reveal unseen tiles in a wide radius |
+| Heat Sink | consumable | −2 heat (30-turn cooldown) |
+| Emergency Stim | consumable | Full heal, +3 atk for 10 turns, +1 heat |
+| Recall Scroll | consumable | Instant warp to last-known shop |
+| Burner SIM | consumable | Next hack generates zero heat |
+| Firmware Cartridge | consumable | +3 hack bonus for one terminal session |
+| Decoy Persona | consumable | SOC chases a fake operator for 20 turns |
+
+**Black market:** ~5% of terminals hide an illicit partition. Root the host, then type **`blackmarket`** in the shell (or use the touch **BLACK MKT** button). Illegal modules cost creds **plus heat**.
+
+**Anvil Beacon** mirrors Shop Link for crafting: use when adjacent for free access, or remotely for a turn to socket gems at a remembered anvil.
 
 ---
 
@@ -137,7 +165,19 @@ Sixteen **archetypes** reshape each run: starting modules, creds, personality, s
 
 ## Between runs
 
-Beat the portal and the game saves to `localStorage`. Up to **six modules** carry into the next attempt. Difficulty (easy / normal / hard / nightmare) changes enemy scaling and briefing tone.
+Progress is stored in the browser via **IndexedDB** (with **localStorage** fallback if IndexedDB is unavailable). On first load after an update, existing `localStorage` saves migrate automatically.
+
+- **Profile** — beat the portal and up to **six modules** carry into the next attempt.
+- **Run saves** — four slots; autosave on panel transitions, loot pickup, and when the tab backgrounds. Export/import **`.arthack`** files from the title / resume screen.
+- **Difficulty** (easy / normal / hard / nightmare) changes enemy scaling and briefing tone.
+
+---
+
+## Travel and QoL
+
+Press **`9`** for fast travel to the last-seen **shop**, **anvil**, or **crafting table** (costs a turn after confirm). **`pin`** saves your current tile as a custom waypoint (max 3); waypoints appear in the same travel panel. **`unpin`** removes the last pin, or **`unpin 2`** for a specific slot.
+
+**Recall Scroll** (consumable) warps instantly to the last-known shop without the confirm dialog.
 
 ---
 
@@ -159,17 +199,21 @@ Beat the portal and the game saves to `localStorage`. Up to **six modules** carr
 | `v` / `z` | Stealth / shoot |
 | `m` | Minimap |
 | `n` / `8` | Journal / secrets |
+| `9` | Fast travel (shop / anvil / table / pins) |
 | `o` / `=` | Log / summary |
 | `?` / `c` | Help / full command list |
 | `r` | Rest |
 | `q` | Quit |
 
-Typed commands include `equip`, `drink`, `buy`, `sell`, `scan`, `portscan`, `vulnscan`, `hack`, `botnet`, `pivot`, `clearlogs`, and `difficulty`. The in-game `c` overlay lists everything valid in context.
+Typed commands include `equip`, `drink` / `use`, `buy`, `sell`, `order`, `tradein`, `pin`, `unpin`, `blackmarket`, `scan`, `portscan`, `vulnscan`, `hack`, `botnet`, `pivot`, `clearlogs`, `export` / `import`, and `difficulty`. The in-game `c` overlay lists everything valid in context.
+
+In the shop overlay: **`O`** places a buy order on the highlighted item.
 
 ---
 
 ## Technical notes
 
-- **Single file:** `arthack.html` (~8600 lines), canvas-rendered, zero dependencies.
+- **Single file:** `arthack.html` (~10,300 lines), canvas-rendered, zero dependencies.
+- **Persistence:** IndexedDB database `arthack` / store `kv` for profile, run index, four run slots, and slot payloads (LZ-compressed JSON). One-time migration from legacy `localStorage` keys.
 - Responsive layout with portrait sidebar and touch UI.
 - Ported from a multi-stage Python roguelike reference (stages 1–7 annotated in the source header).

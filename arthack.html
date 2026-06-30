@@ -80,6 +80,7 @@ input,textarea{-webkit-user-select:text;user-select:text}
     <button class="bm" data-key="8">SECRETS</button>
     <button class="bm" data-key="9">TRAVEL</button>
     <button class="bm" data-key="o">LOG</button>
+    <button class="bm" id="tui-save-btn" type="button">SAVE</button>
     <button class="bm" data-key="=">SUMMARY</button>
     <button class="bm" data-key="c">CMDS</button>
     <button class="bm" data-key="?">HELP</button>
@@ -260,6 +261,100 @@ const BPACKS=[
   {char:'[',name:'leather haversack',desc:'well-stitched leather haversack',   kind:'backpack',slot:'back',rarity:'rare',     carryBonus:56,bagCap:40,weight:2.5, valueCp:720},
   {char:'[',name:'iron-frame rucksack',desc:'expedition pack with iron stays', kind:'backpack',slot:'back',rarity:'epic',     carryBonus:88,bagCap:60,weight:4.0, valueCp:1400}
 ];
+const SHOP_SPECIAL={
+  bag_of_holding:{
+    char:'[',name:'bag of holding',desc:'extradimensional satchel — violates several storage policies',
+    kind:'backpack',slot:'back',rarity:'rare',carryBonus:720,bagCap:550,weight:0,fixedCp:10000
+  },
+  shop_link:{
+    char:'%',name:'shop link',desc:'encrypted quartermaster uplink — caches nearest vendor catalog',
+    kind:'gadget',slot:'none',rarity:'uncommon',gadget:'shop_link',weight:0.15,baseCp:420
+  },
+  anvil_beacon:{
+    char:'A',name:'anvil beacon',desc:'resonates with the last-known anvil — remote socket uplink',
+    kind:'gadget',slot:'none',rarity:'uncommon',gadget:'anvil_beacon',weight:0.2,baseCp:520
+  },
+  bandolier:{
+    char:'[',name:'bandolier',desc:'quick-access strap rig — extra pouches, no load bearing',
+    kind:'backpack',slot:'back',rarity:'common',carryBonus:0,bagCap:8,weight:0.6,baseCp:220
+  },
+  coin_purse:{
+    char:'$',name:'coin purse',desc:'weighted leather purse — vendors pay 15% more for your junk',
+    kind:'jewelry',slot:'amulet',rarity:'uncommon',gadget:'coin_purse',weight:0.1,baseCp:340
+  },
+  mule_harness:{
+    char:'[',name:'mule harness',desc:'yoke and straps for hauling — no pouches',
+    kind:'backpack',slot:'back',rarity:'uncommon',carryBonus:40,bagCap:0,weight:2.2,baseCp:480
+  },
+  scrying_lens:{
+    char:'*',name:'scrying lens',desc:'one-use crystal — reveals unseen tiles in a wide radius',
+    kind:'consumable',slot:'none',rarity:'uncommon',consumable:'scrying_lens',weight:0.2,baseCp:380
+  },
+  heat_sink:{
+    char:'*',name:'heat sink',desc:'thermal dump gel — sheds 2 heat (30-turn cooldown)',
+    kind:'consumable',slot:'none',rarity:'uncommon',consumable:'heat_sink',weight:0.3,baseCp:290
+  },
+  emergency_stim:{
+    char:'*',name:'emergency stim',desc:'combat injector — full heal, +3 atk 10 turns, +1 heat',
+    kind:'consumable',slot:'none',rarity:'rare',consumable:'emergency_stim',weight:0.2,baseCp:620
+  },
+  loot_magnet:{
+    char:'$',name:'loot magnet',desc:'passive room sweeper — use toggles auto-pickup in chambers',
+    kind:'gadget',slot:'none',rarity:'rare',gadget:'loot_magnet',weight:0.25,baseCp:780
+  },
+  recall_scroll:{
+    char:'*',name:'recall scroll',desc:'one-use warp script — instant jump to last-known shop',
+    kind:'consumable',slot:'none',rarity:'uncommon',consumable:'recall_scroll',weight:0.1,baseCp:450
+  },
+  burner_sim:{
+    char:'$',name:'burner sim',desc:'disposable SIM — next hack generates zero heat',
+    kind:'consumable',slot:'none',rarity:'rare',consumable:'burner_sim',weight:0.05,baseCp:540
+  },
+  firmware_cartridge:{
+    char:'$',name:'firmware cartridge',desc:'hot-swappable exploit pack — +3 hack for one terminal session',
+    kind:'consumable',slot:'none',rarity:'rare',consumable:'firmware_cartridge',weight:0.15,baseCp:680
+  },
+  decoy_persona:{
+    char:'$',name:'decoy persona',desc:'synthetic operator profile — SOC chases the decoy 20 turns',
+    kind:'consumable',slot:'none',rarity:'epic',consumable:'decoy_persona',weight:0.1,baseCp:920
+  },
+  terminal_dongle:{
+    char:'$',name:'terminal dongle',desc:'RF bridge to nearest ! host — remote hack uplink within 3 tiles',
+    kind:'gadget',slot:'none',rarity:'uncommon',gadget:'terminal_dongle',weight:0.15,baseCp:480
+  },
+  smoke_pellet:{
+    char:'*',name:'smoke pellet',desc:'choking powder — 8 turns of stealth without toggling sneak (breaks on attack)',
+    kind:'consumable',slot:'none',rarity:'common',consumable:'smoke_pellet',weight:0.1,baseCp:180
+  },
+  honeypot_sniffer:{
+    char:'*',name:'honeypot sniffer',desc:'one-use trap probe — scans adjacent terminal for honeypot bait',
+    kind:'consumable',slot:'none',rarity:'uncommon',consumable:'honeypot_sniffer',weight:0.15,baseCp:360
+  },
+  clue_compass:{
+    char:'$',name:'clue compass',desc:'needle toward unseen parchment * during the return act',
+    kind:'gadget',slot:'none',rarity:'uncommon',gadget:'clue_compass',weight:0.2,baseCp:400
+  },
+  appraisal_monocle:{
+    char:'$',name:'appraisal monocle',desc:'vendor lens — inspect reveals sell price and loyalty tier',
+    kind:'gadget',slot:'none',rarity:'uncommon',gadget:'appraisal_monocle',weight:0.1,baseCp:320
+  }
+};
+const TERMINAL_DONGLE_RANGE=3;
+const SMOKE_PELLET_TURNS=8;
+const SHOP_ROTATION=Object.keys(SHOP_SPECIAL).filter(k=>k!=='bag_of_holding');
+const WAYPOINT_MAX=3;
+const LOYALTY_TIERS=[[2,0.05],[5,0.10],[10,0.15]];
+const HEAT_SINK_CD=30;
+const BLACK_MARKET_MODULES=['golden_ticket','shellcode_loader','ntlm_relay','psexec_kit','kerberoast_kit','uac_bypass','browser_dump'];
+function mkShopSpecial(id,lvl=0){
+  const tpl=SHOP_SPECIAL[id];
+  if(!tpl)return null;
+  const eff=effectiveThreatLvl(lvl);
+  const rar=tpl.rarity||rarityLvl(eff);
+  const{baseCp,fixedCp,rarity:_r,...rest}=tpl;
+  const valueCp=fixedCp!=null?fixedCp:itemValueCp(baseCp,rar,'fine',eff,0);
+  return mkItem({...rest,rarity:rar,valueCp});
+}
 
 // ── Hacking data ─────────────────────────────────────────────
 const MODULE_TO_TOOL={
@@ -1546,6 +1641,7 @@ function shopRestockPick(lvl){
   if(r<0.80)return mkMat(eff);
   if(r<0.88)return mkPotion(eff);
   if(r<0.94){const bp=ch(BPACKS);return{...bp,valueCp:itemValueCp(bp.valueCp,bp.rarity,'fine',eff,0)};}
+  if(r<0.97){const g=mkShopSpecial('shop_link',eff);if(g)return g;}
   return mkCurrencyDrop(eff);
 }
 function shopStock(lvl=0){
@@ -1556,6 +1652,14 @@ function shopStock(lvl=0){
   for(let i=0;i<ri(6,9);i++)s.push(mkJewelry(eff));
   for(let i=0;i<ri(5,8);i++)s.push(mkConsolePart(pickConsolePartId(eff),eff));
   for(const bp of BPACKS)s.push({...bp,valueCp:itemValueCp(bp.valueCp,bp.rarity,'fine',eff,0)});
+  const bagHold=mkShopSpecial('bag_of_holding',eff);
+  if(bagHold)s.push(bagHold);
+  if(rf()<0.65){const link=mkShopSpecial('shop_link',eff);if(link)s.push(link);}
+  for(let i=0;i<ri(2,4);i++){
+    const id=ch(SHOP_ROTATION.filter(x=>x!=='bag_of_holding'));
+    const it=mkShopSpecial(id,eff);
+    if(it)s.push(it);
+  }
   const potFam=sh([...POTION_FAMILY_ORDER]).slice(0,ri(5,POTION_FAMILY_ORDER.length));
   for(const fam of potFam)s.push(mkPotionFromFamily(fam,eff));
   for(let i=0;i<ri(3,5);i++)s.push(mkPotion(eff));
@@ -1807,7 +1911,8 @@ function populateLevel(snap){
     const tier=Math.max(1,Math.min(3,1+Math.floor(lvlNum/2)));
     setc(g,tx,ty,'!');
     const hp=lvlNum>=1?rf()<0.12:false;
-    sps[`${tx},${ty}`]={kind:'terminal',ssid,control:ctrl,tier,hacked:false,honeypot:hp,botnet:false,ports:[],
+    const bm=!hp&&lvlNum>=1&&rf()<0.05;
+    sps[`${tx},${ty}`]={kind:'terminal',ssid,control:ctrl,tier,hacked:false,honeypot:hp,botnet:false,blackMarket:bm,ports:[],
       mac:genMac(),ip:terminalIP(ctrl,lvlNum),hostname:terminalHostname(ctrl,i+1),
       credUnlocked:false,credSource:null,_secretExtracted:false};
     termSpecs.push([tx,ty,ssid,tier]);
@@ -2078,6 +2183,11 @@ function recordKnownTravel(){
     G.travel[type]={level:G.level,x,y};
   }
 }
+function cacheKnownTerminal(term){
+  if(!term||term.x==null||term.y==null)return;
+  const sp=specials[term.key];
+  G.travel.terminal={level:G.level,x:term.x,y:term.y,hacked:!!sp?.hacked};
+}
 
 // ── Game state ────────────────────────────────────────────────
 const G={
@@ -2112,7 +2222,10 @@ const G={
   hackBonus:null,minigame:null,
   logScroll:0,logFilterIdx:0,invCursor:0,invScroll:0,craftCursor:0,craftScroll:0,gemCursor:0,gemScroll:0,shopCursor:0,shopScroll:0,  hackCursor:0,hackScroll:0,
   secretsCursor:0,secretsScroll:0,
-  travel:{shop:null,anvil:null,table:null},travelCursor:0,travelConfirm:null,
+  travel:{shop:null,anvil:null,table:null,terminal:null},travelCursor:0,travelConfirm:null,
+  waypoints:[],buyOrders:[],shopLoyalty:{},
+  lootMagnet:false,decoyUntil:0,decoyPos:null,smokeUntil:0,
+  sessionHackBonus:0,burnerSimReady:false,gadgetCD:{},
   slotPick:null,_loadMsg:'',
   termShell:null,
   personality:{luck:3,charm:3,wit:3,nerve:3},
@@ -2289,6 +2402,20 @@ function stealthCut(){
   let cut=3+Math.floor(G.skills.evasion/4);
   if(G.archetype==='infiltrator')cut+=3;
   return cut;
+}
+function inStealth(){return!!(G.stealthMode||(G.smokeUntil>G.turnCount));}
+function breakStealth(msg){
+  const had=inStealth();
+  G.stealthMode=false;
+  G.smokeUntil=0;
+  if(msg&&had)addLog(msg,M.red);
+}
+function bearingLabel(px,py,tx,ty){
+  const dx=tx-px,dy=ty-py;
+  if(!dx&&!dy)return'HERE';
+  const ang=Math.atan2(dy,dx)*180/Math.PI;
+  const dirs=['E','SE','S','SW','W','NW','N','NE'];
+  return dirs[((Math.round(ang/45)%8)+8)%8];
 }
 
 function scaleEnemy(ent){
@@ -2678,6 +2805,7 @@ function drawSidebar(){
   // Active effects
   if(G.activeEffects.length){sl('── EFFECTS ──',M.s1);for(const ef of G.activeEffects.slice(0,3))sl(`${ef.name} (${ef.duration}t)`,M.tea);}
   // Stealth
+  if(G.smokeUntil>G.turnCount)sl(`[SMOKE ${G.smokeUntil-G.turnCount}t]`,M.sky);
   if(G.stealthMode)sl('[STEALTH]',M.sky);
   if(G.shootMode)sl('[SHOOT MODE]',M.red);
   // Keyboard hints: desktop only, and only if they fit (touch has the action bar).
@@ -2726,7 +2854,7 @@ function drawCompactSidebar(){
   const sk=G.skills;
   ln(` Ml:${sk.melee} Rn:${sk.ranged} Rc:${sk.recon} Ex:${sk.exploit} Cr:${sk.creds} La:${sk.lateral} Pr:${sk.persist} Ev:${sk.evasion} So:${sk.social}`,M.sub,nt?5:4);
   if(!TOUCH_MODE){
-    const eff=[...(G.stealthMode?['[STEALTH]']:[]),...(G.shootMode?['[SHOOT]']:[]),...G.activeEffects.slice(0,3).map(e=>`${e.name}(${e.duration}t)`)];
+    const eff=[...(inStealth()?['[STEALTH]']:[]),...(G.shootMode?['[SHOOT]']:[]),...G.activeEffects.slice(0,3).map(e=>`${e.name}(${e.duration}t)`)];
     ln(' '+(eff.join('  ')||'──'),eff.length?M.tea:M.s1,nt?6:5);
   }
   ctx.font=`${CH}px 'Courier New',monospace`;
@@ -2932,6 +3060,7 @@ function drawOverlay(){
   else if(G.overlay==='inventory')drawInventory();
   else if(G.overlay==='craft')drawCraft();
   else if(G.overlay==='shop')drawShop();
+  else if(G.overlay==='black_market')drawBlackMarket();
   else if(G.overlay==='skills')drawSkills();
   else if(G.overlay==='toolkit')drawToolkit();
   else if(G.overlay==='console')drawConsole();
@@ -3179,7 +3308,7 @@ function drawResume(){
   }else{
     row=overlayText([
       ['---'],
-      ['Autosave on panel open/close and loot pickup · 4 slots · EXPORT/IMPORT .arthack files.',M.s1,2],
+      ['Autosave on panel open/close · SAVE in MORE menu · 4 slots · EXPORT/IMPORT .arthack files.',M.s1,2],
       [peekRunSave(cur)?(TOUCH_MODE?'CONTINUE loads highlighted slot.':'Enter / C = continue highlighted slot.'):(TOUCH_MODE?'NEW GAME starts in highlighted slot.':'Enter / N = new game in highlighted slot.'),M.sub,2]
     ],2,row);
   }
@@ -3417,8 +3546,8 @@ function drawHelp(){
     ['  double-tap terminal: fill next command · double-tap again: run',M.sub,2],
     ['---'],
     ['PROFILE:',M.yel,2],
-    [`  Wins persist in localStorage; up to 6 modules carry into future runs.`,M.sub,2],
-    [`  Runs autosave to localStorage (4 slots) on panel open/close and loot pickup.`,M.sub,2],
+    [`  Wins persist in IndexedDB; up to 6 modules carry into future runs.`,M.sub,2],
+    [`  Runs autosave to IndexedDB (4 slots) on panel open/close; type save or use MORE → SAVE.`,M.sub,2],
     [`  Current carried modules: ${(loadProfile().unlocked_modules||[]).join(', ')||'none'}`,M.sub,2],
     ['---'],
     ['Any key to close.',M.sub,30]
@@ -3440,6 +3569,7 @@ function drawCommands(){
     ['Map terminals: ! locked  + cred-unlock  * secret held  R rooted',M.sub,2],
     ['v — stealth  z — shoot mode  f — confront',M.sub,2],
     ['Typed: help inventory craft skills map journal secrets rest stealth shoot',M.sub,2],
+    ['Typed: save — write current run to IndexedDB (also MORE → SAVE on touch)',M.sub,2],
     ['Typed: export / import — download the run as a .arthack file or load one',M.sub,2],
     ['---'],
     ['TERMINAL COMMANDS (press t or / first):',M.yel,2],
@@ -3458,7 +3588,11 @@ function drawCommands(){
     ['ITEM COMMANDS:',M.yel,2],
     ['equip <name>    equip item from inventory',M.sub,2],
     ['unequip <slot>  remove equipped item',M.sub,2],
-    ['drink/use <name> consume potion',M.sub,2],
+    ['drink/use <name> consume potion, gadget, or consumable',M.sub,2],
+    ['order <name>    reserve shop item (110% hold, arrives on restock)',M.sub,2],
+    ['tradein <pack>  upgrade equipped backpack at a shop',M.sub,2],
+    ['pin / unpin     save or remove travel waypoint (max 3)',M.sub,2],
+    ['blackmarket     illicit modules at rooted black-market terminals',M.sub,2],
     ['drop <name>     drop a held item at your feet',M.sub,2],
     ['move <name> to backpack|inventory',M.sub,2],
     ['shop / buy <number|name> / sell <name>',M.sub,2],
@@ -3580,62 +3714,78 @@ function drawSecrets(){
   overlayText([['---'],['Esc to close.',M.sub,2]],2,row+1);
 }
 
+function travelEntries(){
+  const rows=TRAVEL_TYPES.map(t=>({id:t.key,label:t.label,glyph:t.glyph,dest:G.travel[t.key],kind:'station'}));
+  for(let i=0;i<G.waypoints.length;i++){
+    const w=G.waypoints[i];
+    rows.push({id:`pin:${i}`,label:w.label,glyph:'●',dest:w,kind:'pin'});
+  }
+  return rows;
+}
 function drawTravel(){
-  const cursor=Math.max(0,Math.min(G.travelCursor||0,TRAVEL_TYPES.length-1));
+  const entries=travelEntries();
+  const cursor=Math.max(0,Math.min(G.travelCursor||0,entries.length-1));
   G.travelCursor=cursor;
   if(G.travelConfirm){drawTravelConfirm();return;}
   let row=overlayText([
     ['═══ FAST TRAVEL ═══',M.lav,2],
-    [`Now on level ${G.level}.  ↑↓ select · Enter teleport`,M.sub,2],
+    [`Now on level ${G.level}.  ↑↓ select · Enter teleport · pin command saves waypoints`,M.sub,2],
     ['---']
   ]);
   const listStartRow=row;
   const rowH=overlayCh()*2;
-  for(let i=0;i<TRAVEL_TYPES.length;i++){
-    const t=TRAVEL_TYPES[i];
-    const dest=G.travel[t.key];
+  for(let i=0;i<entries.length;i++){
+    const ent=entries[i];
+    const dest=ent.dest;
     const hl=i===cursor;
     const known=!!dest;
-    const head=`${hl?'▶':' '} ${t.glyph}  ${t.label}`;
+    const head=`${hl?'▶':' '} ${ent.glyph}  ${ent.label}${ent.kind==='pin'?' [pin]':''}`;
     row=overlayText([[head,known?(hl?M.yel:M.tea):M.s1,2]],2,row);
     const detail=known
-      ?(dest.level===G.level?`     level ${dest.level} (this level)`:`     level ${dest.level}`)
+      ?`     level ${dest.level}${dest.level===G.level?' (here)':''}`
       :'     not discovered yet';
     row=overlayText([[detail,known?M.sub:M.s1,2]],2,row);
   }
-  registerOverlayList({startRow:listStartRow,rowH,scroll:0,len:TRAVEL_TYPES.length,visibleCount:TRAVEL_TYPES.length,
+  registerOverlayList({startRow:listStartRow,rowH,scroll:0,len:entries.length,visibleCount:entries.length,
     onSelect:idx=>{
       G.travelCursor=idx;
-      const t=TRAVEL_TYPES[idx];
-      if(t&&G.travel[t.key])G.travelConfirm=t.key;
+      const ent=entries[idx];
+      if(ent?.dest)G.travelConfirm=ent.id;
       else addLog('That destination is not known yet.',M.red);
       render();
     }});
   row=overlayText([['---']],2,row);
-  const sel=TRAVEL_TYPES[cursor];
-  if(sel&&!G.travel[sel.key])
-    row=overlayText([['Walk over a '+sel.label.toLowerCase()+' once to remember it.',M.s1,2]],2,row);
+  if(!G.waypoints.length)row=overlayText([['Type pin to save current tile (max 3).',M.s1,2]],2,row);
   overlayText([['---'],['Enter — confirm teleport · Esc — close.',M.sub,2]],2,row+1);
 }
 function drawTravelConfirm(){
   const type=G.travelConfirm;
-  const t=TRAVEL_TYPES.find(t=>t.key===type);
-  const dest=G.travel[type];
   let row=overlayText([
     ['═══ CONFIRM TELEPORT ═══',M.lav,2],
     [TOUCH_MODE?'YES / NO buttons above':'Enter/Y — confirm · N/Esc — cancel',M.sub,2],
     ['---']
   ]);
-  if(t&&dest){
-    row=overlayText([
-      [`Destination: ${t.label}`,M.yel,2],
-      [`Location: level ${dest.level}${dest.level===G.level?' (this level)':''}`,M.tea,2],
-      ['---'],
-      ['You will be moved instantly and one turn will pass.',M.sub,2],
-      [`On arrival: ${t.hint}.`,M.sub,2]
-    ],2,row);
+  if(String(type).startsWith('pin:')){
+    const w=G.waypoints[Number(type.slice(4))];
+    if(w){
+      row=overlayText([
+        [`Destination: ${w.label}`,M.yel,2],
+        [`Location: level ${w.level}`,M.tea,2],
+        ['---'],['You will be moved instantly and one turn will pass.',M.sub,2]
+      ],2,row);
+    }
   }else{
-    row=overlayText([['That destination is no longer available.',M.red,2]],2,row);
+    const t=TRAVEL_TYPES.find(t=>t.key===type);
+    const dest=G.travel[type];
+    if(t&&dest){
+      row=overlayText([
+        [`Destination: ${t.label}`,M.yel,2],
+        [`Location: level ${dest.level}${dest.level===G.level?' (this level)':''}`,M.tea,2],
+        ['---'],
+        ['You will be moved instantly and one turn will pass.',M.sub,2],
+        [`On arrival: ${t.hint}.`,M.sub,2]
+      ],2,row);
+    }else row=overlayText([['That destination is no longer available.',M.red,2]],2,row);
   }
   overlayText([['---'],['Teleporting costs a turn — enemies and heat advance.',M.s1,2]],2,row+1);
 }
@@ -3771,7 +3921,7 @@ function resolveSocketItem(item){
 function beginSocketConfirm(){
   G.craftMsg='';
   const{items,gems,item,gem}=resolveSocketPick();
-  if(!adjStation('anvil')){G.craftMsg='Move adjacent to anvil (A tile).';addLog(G.craftMsg,M.red);return false;}
+  if(!craftStationOk('anvil')){G.craftMsg='Need anvil access (adjacent or anvil beacon).';addLog(G.craftMsg,M.red);return false;}
   if(!items.length){G.craftMsg='No socketable gear — equip gear, jewelry, backpacks, or rig parts.';addLog(G.craftMsg,M.red);return false;}
   if(!gems.length){G.craftMsg='No gems in inventory.';addLog(G.craftMsg,M.red);return false;}
   if(!item||!gem){G.craftMsg='Tap a gear row and a gem row to select both.';return false;}
@@ -3795,7 +3945,7 @@ function confirmSocketGem(){
 function socketSelectedGem(){
   G.craftMsg='';
   const{items,gems,item,gem}=resolveSocketPick();
-  if(!adjStation('anvil')){G.craftMsg='Move adjacent to anvil (A tile).';addLog(G.craftMsg,M.red);return false;}
+  if(!craftStationOk('anvil')){G.craftMsg='Need anvil access (adjacent or anvil beacon).';addLog(G.craftMsg,M.red);return false;}
   if(!items.length){G.craftMsg='No socketable gear — equip gear, jewelry, backpacks, or rig parts.';addLog(G.craftMsg,M.red);return false;}
   if(!gems.length){G.craftMsg='No gems in inventory.';addLog(G.craftMsg,M.red);return false;}
   if(!item||!gem){G.craftMsg='Tap a gear row and a gem row to select both.';return false;}
@@ -3842,10 +3992,11 @@ function drawCraftConfirm(startRow){
 }
 function drawCraftSocket(startRow){
   const items=socketableItems(),gems=availableGems();
-  const atAnvil=adjStation('anvil');
+  const atAnvil=craftStationOk('anvil');
+  const uplink=_remoteCraftCtx?`  [UPLINK L${_remoteCraftCtx.level}]`:'';
   const ch=overlayCh();
   const itemRowH=ch*(TOUCH_MODE?2:1);
-  let row=overlayText([[`Anvil: ${atAnvil?'adjacent':'move adjacent to anvil (A)'}`,atAnvil?M.grn:M.red,2]],2,startRow);
+  let row=overlayText([[`Anvil: ${atAnvil?`ready${uplink}`:'move adjacent or use anvil beacon'}`,atAnvil?M.grn:M.red,2]],2,startRow);
   const{gearPage,gemPage}=craftSocketPageSizes(row);
   row=overlayText([['GEAR TO SOCKET:',M.yel,2]],2,row);
   const gearListStart=row;
@@ -3923,18 +4074,22 @@ function drawCraft(){
 }
 
 function drawShop(){
-  const sp=currentShop();
+  const sp=activeShop();
   if(!sp){overlayText([['Not at a shop.',M.red,20],['Any key to close.',M.sub,2]]);return;}
-  overlayText([['═══ SHOP ═══',M.lav,2],[`[B]uy  [S]ell   ${sp.name}   View:${G.shopMode==='stock'?'buy':'sell'}`,M.sub,2],['---']]);
+  const uplink=_remoteShopCtx?`  [UPLINK L${_remoteShopCtx.level}]`:'';
+  const vendor=activeShopVendor();
+  const disc=vendor?shopLoyaltyRate(vendor):0;
+  overlayText([['═══ SHOP ═══',M.lav,2],[`[B]uy  [S]ell  [O]rder   ${sp.name}${uplink}   View:${G.shopMode==='stock'?'buy':'sell'}`,M.sub,2],
+    [disc?`Loyalty discount: ${Math.round(disc*100)}% (${G.shopLoyalty[vendor]||0} purchases)`:`Loyalty: ${G.shopLoyalty[vendor]||0} purchases — 2/5/10 for discounts`,M.s1,2],['---']]);
   if(G.shopMode==='stock'){
     const entries=shopStockEntries(sp.stock);
     const cursor=Math.max(0,Math.min(G.shopCursor||0,Math.max(0,entries.length-1)));
     G.shopCursor=cursor;
     const layout=shopListPanelLayout(entries,cursor);
-    const drawn=drawGroupedItemList(entries,layout,cursor,{cursorKey:'shopCursor',empty:'  (sold out)'});
+    const drawn=drawGroupedItemList(entries,layout,cursor,{cursorKey:'shopCursor',empty:'  (sold out)',priceFn:it=>shopBuyPrice(it,vendor)});
     overlayText([
       ['---'],
-      [`Stock ${entries.length?layout.scroll+1:0}-${drawn.end}/${entries.length}  Wallet: ${G.walletCp}cp  Enter=buy  X=inspect  S=sell`,M.sub,2],
+      [`Stock ${entries.length?layout.scroll+1:0}-${drawn.end}/${entries.length}  Wallet: ${G.walletCp}cp  Enter=buy  O=order  X=inspect  S=sell`,M.sub,2],
       ['common · uncommon · rare · legendary',M.s1,2]
     ],2,drawn.row);
     registerOverlayList({startRow:3,scroll:layout.scroll,len:entries.length,visibleCount:drawn.view.length,cursorKey:'shopCursor'});
@@ -3956,6 +4111,30 @@ function drawShop(){
     ],2,drawn.row);
     registerOverlayList({startRow:3,scroll:layout.scroll,len:entries.length,visibleCount:drawn.view.length,cursorKey:'shopCursor'});
   }
+}
+
+function drawBlackMarket(){
+  const term=G._blackMarketTerm||blackMarketTerminal();
+  if(!term?.blackMarketStock?.length){
+    overlayText([['Black market stall is empty.',M.red,20],['Any key to close.',M.sub,2]]);
+    return;
+  }
+  overlayText([['═══ BLACK MARKET ═══',M.red,2],[`${term.ssid}  illegal modules · heat surcharge`,M.sub,2],['---']]);
+  const stock=term.blackMarketStock;
+  const entries=shopStockEntries(stock);
+  const cursor=Math.max(0,Math.min(G.shopCursor||0,Math.max(0,entries.length-1)));
+  G.shopCursor=cursor;
+  const layout=shopListPanelLayout(entries,cursor);
+  const drawn=drawGroupedItemList(entries,layout,cursor,{
+    cursorKey:'shopCursor',empty:'  (sold out)',
+    priceFn:it=>`${it.valueCp||0}cp +${Number(it.heatCost||1.5).toFixed(1)}h`
+  });
+  overlayText([
+    ['---'],
+    [`Offerings ${entries.length?layout.scroll+1:0}-${drawn.end}/${entries.length}  Wallet: ${G.walletCp}cp  Enter=buy`,M.sub,2],
+    ['Heat rises with every illicit purchase.',M.s1,2]
+  ],2,drawn.row);
+  registerOverlayList({startRow:3,scroll:layout.scroll,len:entries.length,visibleCount:drawn.view.length,cursorKey:'shopCursor'});
 }
 
 function drawSkills(){
@@ -4219,8 +4398,33 @@ function mkPickCveGame(ctx){
   while(d1===real)d1=fakeCve(null,3);
   while(d2===real||d2===d1)d2=fakeCve(null,4);
   const opts=sh([real,d1,d2]);
+  const todoPath='/opt/castle/app/todo.md';
+  const todoLines=[
+    '# CastleNet app backlog — INTERNAL',
+    '',
+    '## patch queue (Q3)',
+    '- [ ] auth middleware hotfix before seneschal audit',
+    '- [ ] bump openssl / libcastle-net',
+    `- [ ] TRIAGE: ${real} — RCE in castle-api request parser`,
+    '- [ ] rotate svc_deploy keys after pentest',
+    '',
+    '# do not commit',
+  ];
   return{type:'pick_cve',title:'CVE TRIAGE',hint:'Pick the CVE listed in /opt/castle/app/todo.md',
-    ctx,opts,answer:real,cursor:0,taps:[]};
+    ctx,opts,answer:real,cursor:0,todoPath,todoLines,viewFile:false,taps:[]};
+}
+function mgPickCveShowFile(){
+  const mg=G.minigame;if(!mg||mg.type!=='pick_cve')return;
+  mg.viewFile=true;render();
+}
+function mgPickCveBack(){
+  const mg=G.minigame;if(!mg||mg.type!=='pick_cve')return;
+  mg.viewFile=false;render();
+}
+function mgPickCveConfirm(){
+  const mg=G.minigame;if(!mg||mg.type!=='pick_cve'||mg.viewFile)return;
+  if(mg.opts[mg.cursor]===mg.answer)minigameWin('[+] CVE triaged — correct identifier.');
+  else minigameFail('[-] Wrong CVE.');
 }
 function mkTypeWordGame(ctx){
   const word=fakePwd().slice(0,ri(4,7));
@@ -4381,6 +4585,12 @@ function mgCtxBarMinigame(bar,key){
   }else if(t==='type_word'){
     bar.appendChild(ctxBtn('⌫','cr',()=>mgTypeBackspace()));
     bar.appendChild(ctxBtn('SUBMIT','cg',()=>mgTypeSubmit()));
+  }else if(t==='pick_cve'){
+    if(mg.viewFile)bar.appendChild(ctxBtn('← BACK','cb',()=>mgPickCveBack()));
+    else{
+      bar.appendChild(ctxBtn('READ TODO','cy',()=>mgPickCveShowFile()));
+      bar.appendChild(ctxBtn('CONFIRM','cg',()=>mgPickCveConfirm()));
+    }
   }
 }
 function drawMinigame(){
@@ -4489,7 +4699,30 @@ function drawMinigame(){
     row=overlayText([[`Tap during quiet gap · tries:${mg.tries}`,M.sub,2]],2,row);adv();
     row=overlayText([[TOUCH_MODE?'✓ INJECT!':'Space / INJECT in bar',quiet?M.grn:M.cy,2]],2,row);
     mgTapRow(row-1,'mg_fire',ch,step);
-  }else if(mg.type==='sql_inject'||mg.type==='pick_cve'){
+  }else if(mg.type==='pick_cve'){
+    if(mg.viewFile){
+      row=overlayText([[`── ${mg.todoPath} ──`,M.pch,2]],2,row);adv();
+      for(const ln of mg.todoLines){
+        const col=/CVE-\d{4}-\d+/.test(ln)?M.red:ln.startsWith('#')?M.yel:M.sub;
+        row=overlayText([[mgTrunc(ln),col,2]],2,row);adv();
+      }
+      adv();
+      row=overlayText([[TOUCH_MODE?'← BACK to CVE list':'B / Backspace = back to CVE list',M.tea,2]],2,row);
+      mgTapRow(row-1,'mg_cve_back',ch,step);
+    }else{
+      row=overlayText([[`Source: ${mg.todoPath}`,M.s1,2]],2,row);adv();
+      for(let i=0;i<mg.opts.length;i++){
+        const hl=i===mg.cursor;
+        row=overlayText([[`${hl?'▶':' '} ${i+1}. ${mgTrunc(mg.opts[i])}`,hl?M.grn:M.sub,2]],2,row);
+        mgTapRow(row-1,String(i),ch,step);adv();
+      }
+      adv();
+      row=overlayText([[TOUCH_MODE?'📄 Read todo.md':'F = read todo.md',M.pch,2]],2,row);
+      mgTapRow(row-1,'mg_cve_file',ch,step);adv();
+      row=overlayText([[TOUCH_MODE?'✓ Confirm highlighted CVE':'Enter = confirm CVE',M.grn,2]],2,row);
+      mgTapRow(row-1,'mg_cve_ok',ch,step);
+    }
+  }else if(mg.type==='sql_inject'){
     for(let i=0;i<mg.opts.length;i++){
       const hl=i===mg.cursor;
       row=overlayText([[`${hl?'▶':' '} ${i+1}. ${mgTrunc(mg.opts[i])}`,hl?M.grn:M.sub,2]],2,row);
@@ -4588,7 +4821,18 @@ function handleMinigameKey(e){
     if(e.key===' '||e.key==='Enter')mgStopCursorFire();
   }else if(mg.type==='traffic_timing'){
     if(e.key===' '||e.key==='Enter')mgTrafficFire();
-  }else if(mg.type==='sql_inject'||mg.type==='pick_cve'){
+  }else if(mg.type==='pick_cve'){
+    if(mg.viewFile){
+      if(e.key==='b'||e.key==='B'||e.key==='Backspace'||e.key==='f'||e.key==='F')mgPickCveBack();
+      return;
+    }
+    if(e.key==='f'||e.key==='F'){mgPickCveShowFile();return;}
+    const n=mg.opts.length;
+    if(e.key==='ArrowUp'||e.key==='k')mg.cursor=(mg.cursor+n-1)%n;
+    else if(e.key==='ArrowDown'||e.key==='j')mg.cursor=(mg.cursor+1)%n;
+    else if(e.key>='1'&&e.key<='3')mg.cursor=Number(e.key)-1;
+    else if(e.key==='Enter'||e.key===' ')mgPickCveConfirm();
+  }else if(mg.type==='sql_inject'){
     const n=mg.opts.length;
     if(e.key==='ArrowUp'||e.key==='k')mg.cursor=(mg.cursor+n-1)%n;
     else if(e.key==='ArrowDown'||e.key==='j')mg.cursor=(mg.cursor+1)%n;
@@ -4639,6 +4883,9 @@ function mgReviewMarked(marked,bad){
 function minigameTap(id){
   const mg=G.minigame;if(!mg||id==null)return;
   const sid=String(id);
+  if(sid==='mg_cve_file'){mgPickCveShowFile();return;}
+  if(sid==='mg_cve_back'){mgPickCveBack();return;}
+  if(sid==='mg_cve_ok'){mgPickCveConfirm();return;}
   if(sid==='mg_fire'){
     if(mg.type==='stop_cursor')mgStopCursorFire();
     else if(mg.type==='traffic_timing')mgTrafficFire();
@@ -4687,7 +4934,11 @@ function minigameTap(id){
     else if(id==='ec_up')exploitChainSwap(-1);
     else if(id==='ec_down')exploitChainSwap(1);
     else if(id==='ec_ok')exploitChainConfirm();
-  }else if(mg.type==='sql_inject'||mg.type==='pick_cve'){
+  }else if(mg.type==='pick_cve'){
+    if(mg.viewFile)return;
+    mg.cursor=Number(id);
+    mgPickCveConfirm();
+  }else if(mg.type==='sql_inject'){
     mg.cursor=Number(id);
     if(mg.opts[mg.cursor]===mg.answer)minigameWin('[+] Correct.');
     else minigameFail('[-] Wrong.');
@@ -4968,12 +5219,13 @@ function updateCtxBar(){
         bar.appendChild(ctxBtn('YES ✓','cg',()=>doTravelTeleport(G.travelConfirm)));
         bar.appendChild(ctxBtn('NO ✗','cr',()=>{G.travelConfirm=null;render();}));
       }else{
-        TRAVEL_TYPES.forEach((t,i)=>{
-          const known=!!G.travel[t.key];
+        travelEntries().forEach((ent,i)=>{
+          const known=!!ent.dest;
           const cls=known?((G.travelCursor||0)===i?'cy':'cb'):'cd';
-          bar.appendChild(ctxBtn(t.label.split(' ')[0].toUpperCase(),cls,()=>{
+          const lbl=(ent.label||'').split(' ')[0].slice(0,8).toUpperCase()||'GO';
+          bar.appendChild(ctxBtn(lbl,cls,()=>{
             G.travelCursor=i;
-            if(known)G.travelConfirm=t.key;
+            if(known)G.travelConfirm=ent.id;
             else addLog('That destination is not known yet.',M.red);
             render();
           }));
@@ -4981,7 +5233,7 @@ function updateCtxBar(){
         key('ESC','cd','Escape');
       }
     } else if(ov==='shop'){
-      key('[B] Buy','cb','b');key('[S] Sell','cp','s');
+      key('[B] Buy','cb','b');key('[S] Sell','cp','s');key('[O] Order','cy','o');
       key('BUY','cg','Enter');key('ESC','cd','Escape');
     } else if(ov==='term_shell'){
       const sh=G.termShell,t=sh?.term,sp=t&&termSp(t);
@@ -4998,6 +5250,7 @@ function updateCtxBar(){
       else if(sp&&sp.hacked&&!sp._secretExtracted)bar.appendChild(ctxBtn('SECRET','cy',()=>{execTermShellLine(termSecretReadCmd(sp));}));
       else if(sp&&sp.hacked&&!sp.botnet)bar.appendChild(ctxBtn('BOTNET','cg',()=>{execTermShellLine('botnet');}));
       else if(sp?.botnet)bar.appendChild(ctxBtn('PIVOT','cp',()=>{execTermShellLine('pivot');}));
+      if(sp?.hacked&&sp.blackMarket)bar.appendChild(ctxBtn('BLACK MKT','cr',()=>{openBlackMarket();render();}));
       const nxt=sh?.recommend;
       if(nxt)bar.appendChild(ctxBtn('▶ NEXT','cp',()=>{
         if(sh.recPhase==='filled'&&sh.inputBuf===nxt){execTermShellLine(sh.inputBuf);sh.inputBuf='';sh.recPhase='idle';}
@@ -5229,7 +5482,6 @@ function pickupItem(it){
     if(addHeldItem(real)){
       grid[it.y][it.x]='.';
       addLog(`Picked up ${real.name} (${srcLabel}, ${qual}).`,M.yel);
-      saveRunState();
       return true;
     }
     items[it.id]=it;
@@ -5239,19 +5491,16 @@ function pickupItem(it){
     G.walletCp+=Number(it.valueCp||0);
     delete items[it.id];grid[it.y][it.x]='.';
     addLog(`Collected ${it.valueCp||0}cp.`,M.yel);
-    saveRunState();
     return true;
   }
   if(it.kind==='clue'){
     addClue(it.desc,'parchment');
     delete items[it.id];grid[it.y][it.x]='.';
-    saveRunState();
     return true;
   }
   if(addHeldItem(it)){
     if(it.kind==='module')installModuleItem(it,'found loot');
     delete items[it.id];grid[it.y][it.x]='.';addLog(`Picked up ${it.name}.`,M.yel);
-    saveRunState();
     return true;
   }
   return false;
@@ -5365,8 +5614,8 @@ function searchHere(){
 
 function doMeleeAttack(ent){
   scaleEnemy(ent);
-  const ambush=G.stealthMode&&!ent.alerted;
-  G.stealthMode=false;
+  const ambush=inStealth()&&!ent.alerted;
+  breakStealth();
   if(ambush)addLog(`Ambush! You strike ${ent.name} from the shadows.`,M.grn);
   else{G.heat=clampHeat(G.heat+1.0);ent.alerted=true;ent.alertTimer=8;}
   addLog(`Combat begins with ${ent.name}!`,M.yel);
@@ -5415,12 +5664,11 @@ function endTurn(){
   computeVisible(visionRadius());
   // Shop restocks
   if(G.turnCount>=G.nextRestockTurn){
-    for(const sp of Object.values(specials))if(sp.kind==='shop'){
-      const add=ri(4,8);for(let i=0;i<add&&sp.stock.length<SHOP_MAX_STOCK;i++)sp.stock.push(shopRestockPick(effectiveThreatLvl(G.level)));
-      sp.stock=sp.stock.slice(0,SHOP_MAX_STOCK);
-    }
+    restockAllShops();
     G.nextRestockTurn=G.turnCount+ri(30,90);
   }
+  lootMagnetSweep();
+  if(G.decoyUntil&&G.turnCount>=G.decoyUntil){G.decoyUntil=0;G.decoyPos=null;addLog('Decoy persona expired.',M.sub);}
   // Contract check
   checkContracts();
   G.heatPeak=Math.max(G.heatPeak||0,G.heat);
@@ -5443,14 +5691,14 @@ function doEnemyTurns(){
     if(!ent.hostile)continue;
     if(ent.isResponder)continue;
     scaleEnemy(ent);
-    const sr=Math.max(1,ent.sight+hb+repSightMod()+(G.stealthMode?-stealthCut():0));
+    const sr=Math.max(1,ent.sight+hb+repSightMod()+(inStealth()?-stealthCut():0));
     const dist=Math.abs(ent.x-G.px)+Math.abs(ent.y-G.py);
     const seesPlayer=dist<=sr&&hasLOS(ent.x,ent.y,G.px,G.py);
     if(seesPlayer){
       ent.alertTimer=8;
       if(!ent.alerted){
         ent.alerted=true;G.heat=clampHeat(G.heat+1.0);
-        if(G.stealthMode){G.stealthMode=false;addLog(`${ent.name} spots you! Stealth broken.`,M.red);}
+        if(inStealth())breakStealth(`${ent.name} spots you! Stealth broken.`);
         else addLog(`${ent.name} spots you!`,M.red);
       }
     }
@@ -5574,16 +5822,22 @@ function updateResponder(){
   const targets=rootedTerminals();
   const ent=activeResponder();
   const hl=heatLevel();
-  if(ent&&(hl<2||!targets.length)){despawnResponder('Heat subsiding — IR stands down.');return;}
-  if(!ent){if(hl>=3&&targets.length)spawnResponder();return;}
-  const target=targets.reduce((best,t)=>{
-    const d=Math.abs(t.x-ent.x)+Math.abs(t.y-ent.y);
-    return !best||d<best.d?{...t,d}:best;
-  },null);
+  if(ent&&(hl<2||(!targets.length&&!(G.decoyUntil>G.turnCount)))){despawnResponder('Heat subsiding — IR stands down.');return;}
+  if(!ent){if(hl>=3&&(targets.length||G.decoyUntil>G.turnCount))spawnResponder();return;}
+  let target=null;
+  if(G.decoyUntil>G.turnCount&&G.decoyPos){
+    target={x:G.decoyPos.x,y:G.decoyPos.y,d:Math.abs(G.decoyPos.x-ent.x)+Math.abs(G.decoyPos.y-ent.y),ssid:'DECOY'};
+  }else if(targets.length){
+    target=targets.reduce((best,t)=>{
+      const d=Math.abs(t.x-ent.x)+Math.abs(t.y-ent.y);
+      return !best||d<best.d?{...t,d}:best;
+    },null);
+  }
   if(!target)return;
+  if(target.ssid!=='DECOY'&&target.d<=1){resecureTerminal(target);return;}
+  if(target.ssid==='DECOY'&&target.d<=1){G.decoyUntil=0;G.decoyPos=null;addLog('[SOC] IR neutralized the decoy persona.',M.yel);despawnResponder('Decoy burned — IR regrouping.');return;}
   if(target.d<=12&&ent.warned<2){ent.warned=2;addLog('[SOC] IR is sweeping the wing for your implants.',M.red);}
-  if(target.d<=6&&ent.warned<3){ent.warned=3;addLog('[SOC] Footsteps echo in the server aisle — IR is closing on a rooted terminal.',M.red);}
-  if(target.d<=1){resecureTerminal(target);return;}
+  if(target.d<=6&&ent.warned<3){ent.warned=3;addLog('[SOC] Footsteps echo in the server aisle — IR is closing.',M.red);}
   for(let i=0;i<2;i++){
     const step=bfsStep(ent.x,ent.y,target.x,target.y);
     if(!step)break;
@@ -6228,6 +6482,7 @@ function openTerminalShell(){
 }
 function closeTerminalShell(){
   if(G.termShell?.term)termOut('logout');
+  G.sessionHackBonus=0;
   G.termShell=null;G.overlay=null;_termDblTap=null;
 }
 function termSp(term){return specials[term.key]||term;}
@@ -6622,9 +6877,11 @@ function termHelpLines(term){
     lines.push(`▶ ${termSecretReadCmd(sp)}  — extract secret (instant root on 1–3 terminals, same level)`);
   } else if(!sp.botnet){
     lines.push('Post-root: botnet · clearlogs · pivot · bruteforce /etc/passwd');
+    if(sp.blackMarket)lines.push('▶ blackmarket — hidden illicit module partition');
   } else {
     lines.push('Post-root: botnet · clearlogs · pivot · bruteforce /etc/passwd');
     if(sp.botnet)lines.push('  C2 node active — pivot available');
+    if(sp.blackMarket)lines.push('▶ blackmarket — hidden illicit module partition');
   }
   const owned=[...G.modules].filter(m=>{
     const tool=MODULE_TO_TOOL[m];
@@ -6648,8 +6905,8 @@ function termCanInstantRoot(sp){
   return!!(sp.credUnlocked&&!sp.hacked);
 }
 function beginTerminalHack(term,mode='balanced'){
-  term=term||adjTerminal();
-  if(!term){addLog('No terminal adjacent.',M.red);return false;}
+  term=term||activeTerminal();
+  if(!term){addLog('No terminal adjacent — use a terminal dongle for remote uplink.',M.red);return false;}
   if(rigBlocksHack()){
     addLog(`Rig tier ${consoleRigTier()} too weak for strain ${storyTier()} (need tier ${rigTierRequired()}). Upgrade portable console [0].`,M.red);
     return false;
@@ -6669,8 +6926,8 @@ function beginTerminalHack(term,mode='balanced'){
   return true;
 }
 function instantRootTerminal(term){
-  term=term||adjTerminal();
-  if(!term){addLog('No terminal adjacent.',M.red);return false;}
+  term=term||activeTerminal();
+  if(!term){addLog('No terminal adjacent — use a terminal dongle for remote uplink.',M.red);return false;}
   const sp=termSp(term);
   initTerminalMeta(sp);
   if(sp.hacked){addLog('Already rooted.',M.yel);return false;}
@@ -6962,6 +7219,11 @@ function execTermShellLine(line){
   else if(cmd==='scan')execTermPortscan();
   else if(cmd==='recon')execTermRecon();
   else if(cmd==='botnet'||cmd==='implant')execTermBotnet();
+  else if(cmd==='blackmarket'||cmd==='black_market'){
+    if(!sp.hacked){termOut('[-] root required for hidden partition.');finish();return;}
+    if(!sp.blackMarket){termOut('[-] no black-market partition on this host.');finish();return;}
+    openBlackMarket();finish();return;
+  }
   else if(cmd==='pivot'||cmd==='tunnel')execTermPivot();
   else if(cmd==='clearlogs'||cmd==='wipe'||cmd==='covertracks')execTermClearlogs();
   else if(cmd==='hack'){
@@ -7484,8 +7746,8 @@ function freeNear(cx,cy){
 }
 
 function execHack(mode,skipToolCheck=false){
-  const term=adjTerminal()||G.hackTerm;
-  if(!term){addLog('No terminal adjacent.',M.red);return false;}
+  const term=activeTerminal()||G.hackTerm;
+  if(!term){addLog('No terminal in range.',M.red);return false;}
   const live=specials[term.key]?{...term,...specials[term.key]}:term;
   if(live.hacked&&mode!=='evasion'){addLog('Already rooted. Try "botnet" or "pivot".',M.yel);return false;}
   if(mode==='recon'){
@@ -7524,6 +7786,12 @@ function execHack(mode,skipToolCheck=false){
     }
   }
   const hd=MODE_HEAT[mode]||0;
+  if(G.burnerSimReady){
+    G.hackBonus=G.hackBonus||{};
+    G.hackBonus.noHeat=true;
+    G.burnerSimReady=false;
+    addLog('Burner SIM active — this hack is thermally silent.',M.sky);
+  }
   if(!G.hackBonus?.noHeat){
     if(hd>0&&hd<=0.5)heatBump(1);
     else G.heat=clampHeat(G.heat+hd);
@@ -7532,7 +7800,12 @@ function execHack(mode,skipToolCheck=false){
   if(hackSuccess(live,mode)){
     addLog(`HACK SUCCESS [${mode}] — ${live.ssid} ROOTED.`,M.grn);
     specials[live.key].hacked=true;
+    if(specials[live.key].blackMarket){
+      if(!specials[live.key].blackMarketStock)specials[live.key].blackMarketStock=mkBlackMarketStock(G.level);
+      addLog('Hidden partition unlocked — blackmarket in shell or typed command.',M.red);
+    }
     applyTerminalEffect({...live,...specials[live.key]});
+    cacheKnownTerminal(live);
     if(live.control==='vault'||live.control==='loot')afterVaultHack(live);
     if(['kerberos','ntlm'].includes(mode)){G.validCreds=true;addLog('Session flag set: valid_credentials.',M.blu);}
     if(mode==='evasion'){specials[live.key].hacked=false;addLog('Evasion: logs purged, terminal re-hackable.',M.sky);}
@@ -7549,8 +7822,9 @@ function execHack(mode,skipToolCheck=false){
 }
 
 function openHackSetup(mode){
-  const term=adjTerminal();
-  if(!term){addLog('No terminal adjacent.',M.red);return;}
+  if(adjTerminal())clearRemoteTerm();
+  const term=activeTerminal();
+  if(!term){addLog('No terminal in range — move adjacent or use a terminal dongle.',M.red);return;}
   if(term.hacked&&mode!=='evasion'){addLog('Already rooted. Try "botnet" or "pivot".',M.yel);return;}
   G.hackTerm=term;G.hackMode=mode;G.hackLoadout=[];G.hackCursor=0;G.hackScroll=0;
   G.hackBonus=null;
@@ -7579,6 +7853,7 @@ function execHackFromLoadout(){
     execHack(mode,true);
     G.hackBonus=null;
     G.overlay=null;
+    clearRemoteTerm();
     endTurn();
     render();
   };
@@ -7693,6 +7968,28 @@ function inspectItem(it,label='Inspect'){
     if(preview)addLog(`  Potion: ${preview}`,M.grn);
     else if(it.desc)addLog(`  Potion: ${it.desc}`,M.sub);
   }
+  if(it.kind==='gadget'){
+    if(it.gadget==='shop_link')addLog('  Gadget: use to open nearest or last-known quartermaster (remote uplink costs a turn).',M.pch);
+    else if(it.gadget==='anvil_beacon')addLog('  Gadget: remote anvil/table craft uplink (costs a turn when remote).',M.yel);
+    else if(it.gadget==='terminal_dongle')addLog('  Gadget: hack uplink to nearest ! within 3 tiles (costs a turn when not adjacent).',M.blu);
+    else if(it.gadget==='loot_magnet')addLog(`  Gadget: toggles room auto-loot (currently ${G.lootMagnet?'ON':'OFF'}).`,M.grn);
+    else if(it.gadget==='clue_compass')addLog('  Gadget: pulses toward nearest unseen clue * (return act).',M.tea);
+    else if(it.gadget==='appraisal_monocle')addLog('  Gadget: inspect shows vendor sell price and loyalty tier.',M.yel);
+    else if(it.desc)addLog(`  Gadget: ${it.desc}`,M.sub);
+  }
+  if(it.kind==='consumable'&&it.desc)addLog(`  Consumable: ${it.desc}`,M.grn);
+  if(hasAppraisalMonocle()){
+    const payout=sellPrice(it);
+    addLog(`  Vendor sell: ${payout}cp${hasCoinPurse()?' (coin purse +15%)':''}`,M.yel);
+    const vendor=activeShopVendor();
+    if(vendor){
+      const disc=shopLoyaltyRate(vendor);
+      const n=G.shopLoyalty[vendor]||0;
+      addLog(`  Loyalty@${vendor.split(':')[0]}: ${n} purchases${disc?` — ${Math.round(disc*100)}% buy discount`:''}`,M.tea);
+    }
+    const pending=G.buyOrders.filter(o=>o.vendorKey===activeShopVendor()).length;
+    if(pending)addLog(`  Pending buy orders at vendor: ${pending}`,M.pch);
+  }
   addLog(`  Weight: ${itemWeight(it).toFixed(1)}  Value: ${Number(it.valueCp||0)}cp`,M.sub);
 }
 function inspectRecipe(recipe){
@@ -7722,6 +8019,7 @@ function hackBonus(){
   }
   b+=consoleStatSum('hack');
   b+=consoleStatSum('compute');
+  b+=Number(G.sessionHackBonus||0);
   return b;
 }
 function maxCarry(){return G.maxWeight+carryBonus();}
@@ -7758,10 +8056,10 @@ function findHeldItem(name,pred=()=>true){
 function invCategoryOrder(view){
   if(view==='jewelry')return['Equipped','Amulets','Rings'];
   if(view==='modules')return['Modules'];
-  return['Equipped','Weapons','Head','Chest','Legs','Shield','Backpacks','Console Parts','Potions','Gems','Personality Gems','Materials','Keys & Clues','Currency','Other'];
+  return['Equipped','Weapons','Head','Chest','Legs','Shield','Backpacks','Console Parts','Potions','Consumables','Gadgets','Gems','Personality Gems','Materials','Keys & Clues','Currency','Other'];
 }
 function shopCategoryOrder(){
-  return['Weapons','Head','Chest','Legs','Shield','Backpacks','Amulets','Rings','Console Parts','Potions','Modules','Gems','Personality Gems','Materials','Other'];
+  return['Weapons','Head','Chest','Legs','Shield','Backpacks','Amulets','Rings','Console Parts','Potions','Consumables','Modules','Gems','Personality Gems','Materials','Gadgets','Other'];
 }
 const ARMOR_SLOT_CAT={armor_head:'Head',armor_chest:'Chest',armor_legs:'Legs',shield:'Shield'};
 function armorSlotCategory(slot){return ARMOR_SLOT_CAT[slot]||null;}
@@ -7774,10 +8072,12 @@ function shopEntryCategory(it){
   if(it.kind==='weapon')return'Weapons';
   if(it.kind==='backpack')return'Backpacks';
   if(it.kind==='potion')return'Potions';
+  if(it.kind==='consumable')return'Consumables';
   if(it.kind==='console_part')return'Console Parts';
   if(it.kind==='material'&&it.material==='gem'&&isPersonalityGem(it))return'Personality Gems';
   if(it.kind==='material'&&it.material==='gem')return'Gems';
   if(it.kind==='material')return'Materials';
+  if(it.kind==='gadget')return'Gadgets';
   return'Other';
 }
 function sortCatalogEntries(arr,order){
@@ -7849,19 +8149,21 @@ function invEntryCategory(ent){
   if(it.kind==='weapon')return'Weapons';
   if(it.kind==='backpack')return'Backpacks';
   if(it.kind==='potion')return'Potions';
+  if(it.kind==='consumable')return'Consumables';
   if(it.kind==='material'&&it.material==='gem'&&isPersonalityGem(it))return'Personality Gems';
   if(it.kind==='material'&&it.material==='gem')return'Gems';
   if(it.kind==='material')return'Materials';
   if(it.kind==='key'||it.kind==='clue')return'Keys & Clues';
   if(it.kind==='currency')return'Currency';
   if(it.kind==='console_part')return'Console Parts';
+  if(it.kind==='gadget')return'Gadgets';
   return'Other';
 }
 function inventoryEntries(){
   let arr=[];
   if(G.invView==='gear'){
     arr.push(...['weapon','armor_head','armor_chest','armor_legs','shield','back'].map(slot=>G.equipped[slot]?{origin:'equipped',slot,item:G.equipped[slot]}:null).filter(Boolean));
-    arr.push(...G.inventory.filter(it=>['weapon','armor','backpack','potion','item','material','currency','key','clue','console_part'].includes(it.kind)).map(item=>({origin:'bag',slot:item.slot,item})));
+    arr.push(...G.inventory.filter(it=>['weapon','armor','backpack','potion','consumable','item','material','currency','key','clue','console_part','gadget'].includes(it.kind)).map(item=>({origin:'bag',slot:item.slot,item})));
     arr.push(...G.backpackInv.filter(it=>it.kind!=='jewelry'&&it.kind!=='module').map(item=>({origin:'backpack',slot:item.slot,item})));
   }else if(G.invView==='jewelry'){
     arr.push(...['amulet','ring_1','ring_2','ring_3','ring_4','ring_5','ring_6','ring_7','ring_8','ring_9','ring_10'].map(slot=>G.equipped[slot]?{origin:'equipped',slot,item:G.equipped[slot]}:null).filter(Boolean));
@@ -7899,7 +8201,7 @@ function addHeldItem(it){
   return false;
 }
 function canCraft(recipe){
-  const adj=adjStation(recipe.station);
+  const adj=craftStationOk(recipe.station);
   if(recipe.station&&!adj)return false;
   for(const[mat,n] of Object.entries(recipe.inputs))if(invCount(mat)<n)return false;
   return true;
@@ -7916,9 +8218,12 @@ function adjCraftStation(){
   return null;
 }
 function openCraftPanel(){
-  const st=adjCraftStation();
+  if(adjCraftStation())clearRemoteCraft();
+  const st=adjCraftStation()||_remoteCraftCtx?.station||null;
+  if(!st&&!adjCraftStation()){/* allow remote-only open via beacon */}
+  clearRemoteShop();
   G.overlay='craft';
-  G.craftView=st==='anvil'?'socket':'recipes';
+  G.craftView=(st==='anvil'||_remoteCraftCtx?.station==='anvil')?'socket':'recipes';
   G.craftCursor=0;G.craftScroll=0;G.gemCursor=0;G.gemScroll=0;G.craftConfirm=null;G.craftMsg='';
 }
 function socketableItems(){
@@ -7975,7 +8280,7 @@ function gemPreviewLines(item,gem){
   return lines.length?lines:['Preview: value socket only.'];
 }
 function socketGem(item,gem){
-  if(!adjStation('anvil')){addLog('Socketing requires a nearby anvil.',M.red);return false;}
+  if(!craftStationOk('anvil')){addLog('Socketing requires anvil access (move adjacent or use anvil beacon).',M.red);return false;}
   const liveItem=resolveSocketItem(item);
   const liveGem=findHeldGem(gem);
   if(!liveItem||!liveGem){addLog('Choose gear and a gem first.',M.red);return false;}
@@ -8020,6 +8325,508 @@ function doCraft(recipe){
 }
 
 // ── Shop ─────────────────────────────────────────────────────
+let _remoteShopCtx=null;
+function clearRemoteShop(){_remoteShopCtx=null;}
+let _remoteTermCtx=null;
+function clearRemoteTerm(){_remoteTermCtx=null;}
+function getTerminalSpecial(level,x,y){
+  const sp=level===G.level?specials[`${x},${y}`]:levelStore[level]?.specials?.[`${x},${y}`];
+  return sp?.kind==='terminal'?sp:null;
+}
+function terminalsInRange(range=TERMINAL_DONGLE_RANGE){
+  const res=[];
+  for(const[key,sp] of Object.entries(specials)){
+    if(sp.kind!=='terminal')continue;
+    const[tx,ty]=key.split(',').map(Number);
+    const d=Math.abs(tx-G.px)+Math.abs(ty-G.py);
+    if(d>range)continue;
+    res.push({...sp,x:tx,y:ty,key,d,hacked:!!sp.hacked});
+  }
+  res.sort((a,b)=>a.hacked-b.hacked||a.d-b.d);
+  return res;
+}
+function findNearestTerminalOnLevel(lvl=G.level){
+  const map=lvl===G.level?specials:levelStore[lvl]?.specials;
+  if(!map)return null;
+  let best=null,bd=1e9;
+  for(const[key,sp] of Object.entries(map)){
+    if(sp.kind!=='terminal'||sp.hacked)continue;
+    const[x,y]=key.split(',').map(Number);
+    const d=Math.abs(x-G.px)+Math.abs(y-G.py);
+    if(d<bd){bd=d;best={...sp,x,y,key,d};}
+  }
+  if(best)return best;
+  bd=1e9;
+  for(const[key,sp] of Object.entries(map)){
+    if(sp.kind!=='terminal')continue;
+    const[x,y]=key.split(',').map(Number);
+    const d=Math.abs(x-G.px)+Math.abs(y-G.py);
+    if(d<bd){bd=d;best={...sp,x,y,key,d};}
+  }
+  return best;
+}
+function resolveTerminalDongleTarget(){
+  const adj=adjTerminal();
+  if(adj)return{term:adj,adjacent:true,sp:adj,dist:0,level:G.level};
+  const inRange=terminalsInRange(TERMINAL_DONGLE_RANGE);
+  if(inRange.length){
+    const t=inRange[0];
+    return{term:t,adjacent:false,inRange:true,sp:t,dist:t.d,level:G.level};
+  }
+  const near=findNearestTerminalOnLevel(G.level);
+  if(near)return{term:near,adjacent:false,sp:near,dist:near.d,level:G.level};
+  const dest=G.travel.terminal;
+  if(dest&&dest.level===G.level){
+    const sp=getTerminalSpecial(dest.level,dest.x,dest.y);
+    if(sp){
+      const dist=Math.abs(dest.x-G.px)+Math.abs(dest.y-G.py);
+      return{term:{...sp,x:dest.x,y:dest.y,key:`${dest.x},${dest.y}`},adjacent:false,cached:true,sp,dist,level:dest.level};
+    }
+  }
+  return null;
+}
+function activeTerminal(){
+  const adj=adjTerminal();
+  if(adj)return adj;
+  if(_remoteTermCtx){
+    const sp=getTerminalSpecial(_remoteTermCtx.level,_remoteTermCtx.x,_remoteTermCtx.y);
+    if(sp)return{...sp,x:_remoteTermCtx.x,y:_remoteTermCtx.y,key:`${_remoteTermCtx.x},${_remoteTermCtx.y}`};
+    _remoteTermCtx=null;
+  }
+  return null;
+}
+function useTerminalDongle(){
+  const ref=resolveTerminalDongleTarget();
+  if(!ref){addLog('Terminal dongle: no ! host in range and no cached terminal on this level.',M.red);return{ok:false};}
+  if(ref.adjacent){
+    clearRemoteTerm();
+    beginTerminalHack(ref.term,'balanced');
+    addLog('Terminal dongle paired with adjacent host.',M.tea);
+    return{ok:true,turn:false};
+  }
+  _remoteTermCtx={level:ref.level,x:ref.term.x,y:ref.term.y};
+  beginTerminalHack(activeTerminal(),'balanced');
+  const via=ref.cached?'cached host':ref.inRange?'in-range':'nearest host';
+  addLog(`Terminal dongle uplink (${via}) — ${ref.sp.ssid||'terminal'} dist:${ref.dist}.`,M.pch);
+  return{ok:true,turn:true};
+}
+function getShopSpecial(level,x,y){
+  if(level===G.level){
+    const sp=specials[`${x},${y}`];
+    return sp?.kind==='shop'?sp:null;
+  }
+  const sp=levelStore[level]?.specials?.[`${x},${y}`];
+  return sp?.kind==='shop'?sp:null;
+}
+function findNearestShopOnLevel(lvl=G.level){
+  const map=lvl===G.level?specials:levelStore[lvl]?.specials;
+  if(!map)return null;
+  let best=null,bd=1e9;
+  for(const[key,sp] of Object.entries(map)){
+    if(sp.kind!=='shop')continue;
+    const[x,y]=key.split(',').map(Number);
+    const d=lvl===G.level?Math.abs(x-G.px)+Math.abs(y-G.py):0;
+    if(d<bd){bd=d;best={level:lvl,x,y,sp};}
+  }
+  return best;
+}
+function resolveShopLinkTarget(){
+  const adj=currentShop();
+  if(adj){
+    for(const[key,sp] of Object.entries(specials)){
+      if(sp===adj){const[x,y]=key.split(',').map(Number);return{level:G.level,x,y,sp,adjacent:true};}
+    }
+    return{level:G.level,x:G.px,y:G.py,sp:adj,adjacent:true};
+  }
+  const near=findNearestShopOnLevel(G.level);
+  if(near)return{...near,adjacent:false,cached:false};
+  const dest=G.travel.shop;
+  if(dest){
+    const sp=getShopSpecial(dest.level,dest.x,dest.y);
+    if(sp)return{level:dest.level,x:dest.x,y:dest.y,sp,adjacent:false,cached:true};
+  }
+  return null;
+}
+function activeShop(){
+  const adj=currentShop();
+  if(adj)return adj;
+  if(_remoteShopCtx){
+    const sp=getShopSpecial(_remoteShopCtx.level,_remoteShopCtx.x,_remoteShopCtx.y);
+    if(sp?.kind==='shop')return sp;
+    _remoteShopCtx=null;
+  }
+  return null;
+}
+function openShopPanel(clearRemote=true){
+  if(clearRemote)clearRemoteShop();
+  G.overlay='shop';
+  G.shopCursor=0;
+  G.shopScroll=0;
+}
+function useShopLink(){
+  const ref=resolveShopLinkTarget();
+  if(!ref){addLog('Shop link: no quartermaster on this level and no cached vendor node.',M.red);return{ok:false};}
+  if(ref.adjacent){
+    openShopPanel(true);
+    addLog('Shop link paired with local quartermaster.',M.tea);
+    return{ok:true,turn:false};
+  }
+  _remoteShopCtx={level:ref.level,x:ref.x,y:ref.y};
+  openShopPanel(false);
+  const via=ref.cached?'cached vendor':'nearest vendor';
+  addLog(`Shop link uplink (${via}) — ${ref.sp.name||'quartermaster'} on level ${ref.level}.`,M.pch);
+  return{ok:true,turn:true};
+}
+function useGadget(it){
+  if(!it||it.kind!=='gadget')return{ok:false};
+  if(it.gadget==='shop_link')return useShopLink();
+  if(it.gadget==='anvil_beacon')return useAnvilBeacon();
+  if(it.gadget==='terminal_dongle')return useTerminalDongle();
+  if(it.gadget==='loot_magnet')return toggleLootMagnet();
+  if(it.gadget==='clue_compass')return useClueCompass();
+  if(it.gadget==='appraisal_monocle')return useAppraisalMonocle();
+  addLog(`${it.name} does nothing useful right now.`,M.sub);
+  return{ok:false};
+}
+function useConsumable(it){
+  if(!it||it.kind!=='consumable')return{ok:false};
+  const id=it.consumable||it.name;
+  if(id==='scrying_lens'||/scrying lens/i.test(it.name)){
+    removeHeldItem(it);
+    const r=14;
+    for(let y=G.py-r;y<=G.py+r;y++)for(let x=G.px-r;x<=G.px+r;x++){
+      if(x<0||x>=WW||y<0||y>=WH)continue;
+      if(Math.abs(x-G.px)+Math.abs(y-G.py)>r)continue;
+      if(getc(grid,x,y)!==VOID)seen.add(`${x},${y}`);
+    }
+    computeVisible(visionRadius());
+    addLog('Scrying lens unveils the nearby darkness.',M.tea);
+    return{ok:true,turn:true};
+  }
+  if(id==='heat_sink'||/heat sink/i.test(it.name)){
+    if((G.gadgetCD.heat_sink||0)>G.turnCount){addLog(`Heat sink recharging (${G.gadgetCD.heat_sink-G.turnCount} turns).`,M.yel);return{ok:false};}
+    removeHeldItem(it);
+    addHeat(-2);
+    G.gadgetCD.heat_sink=G.turnCount+HEAT_SINK_CD;
+    addLog('Heat sink vents −2 heat.',M.sky);
+    return{ok:true,turn:true};
+  }
+  if(id==='emergency_stim'||/emergency stim/i.test(it.name)){
+    removeHeldItem(it);
+    G.hp=G.maxHp;
+    G.activeEffects.push({name:'emergency stim',type:'attack',value:3,duration:10});
+    addHeat(1);
+    addLog('Emergency stim — full heal, +3 atk for 10 turns, +1 heat.',M.grn);
+    return{ok:true,turn:true};
+  }
+  if(id==='recall_scroll'||/recall scroll/i.test(it.name)){
+    if(!G.travel.shop){addLog('Recall scroll: no shop location cached.',M.red);return{ok:false};}
+    removeHeldItem(it);
+    const ok=teleportTravel('shop');
+    if(ok)addLog('Recall scroll folds space — you arrive at the quartermaster.',M.pch);
+    return{ok,turn:ok};
+  }
+  if(id==='burner_sim'||/burner sim/i.test(it.name)){
+    removeHeldItem(it);
+    G.burnerSimReady=true;
+    addLog('Burner SIM armed — next hack generates zero heat.',M.blu);
+    return{ok:true,turn:false};
+  }
+  if(id==='firmware_cartridge'||/firmware cartridge/i.test(it.name)){
+    removeHeldItem(it);
+    G.sessionHackBonus=3;
+    addLog('Firmware cartridge loaded — +3 hack bonus until this terminal session ends.',M.pch);
+    return{ok:true,turn:false};
+  }
+  if(id==='decoy_persona'||/decoy persona/i.test(it.name)){
+    removeHeldItem(it);
+    G.decoyPos=null;
+    for(let t=0;t<80;t++){
+      const dx=G.px+ri(-18,18),dy=G.py+ri(-18,18);
+      if(getc(grid,dx,dy)!=='.'||entityAt(dx,dy))continue;
+      G.decoyPos={x:dx,y:dy};break;
+    }
+    if(!G.decoyPos)G.decoyPos={x:G.px,y:G.py};
+    G.decoyUntil=G.turnCount+20;
+    addLog('Decoy persona deployed — SOC will chase the ghost operator.',M.pch);
+    return{ok:true,turn:true};
+  }
+  if(id==='smoke_pellet'||/smoke pellet/i.test(it.name)){
+    removeHeldItem(it);
+    G.smokeUntil=G.turnCount+SMOKE_PELLET_TURNS;
+    addLog(`Smoke pellet — ${SMOKE_PELLET_TURNS} turns of concealment (breaks if you attack).`,M.sky);
+    return{ok:true,turn:true};
+  }
+  if(id==='honeypot_sniffer'||/honeypot sniffer/i.test(it.name)){
+    const t=adjTerminal();
+    if(!t){addLog('Honeypot sniffer needs an adjacent ! terminal.',M.red);return{ok:false};}
+    removeHeldItem(it);
+    const sp=specials[t.key];
+    sp.honeypotSniffed=true;
+    if(sp.honeypot)addLog(`Honeypot sniffer: ${sp.ssid} is a HONEYPOT — expect heat spike on failed hack.`,M.red);
+    else addLog(`Honeypot sniffer: ${sp.ssid} reads clean — no honeypot trap detected.`,M.grn);
+    return{ok:true,turn:true};
+  }
+  addLog(`${it.name} has no effect.`,M.sub);
+  return{ok:false};
+}
+function useClueCompass(){
+  if(G.phase!=='return'||G.clues>=CLUES_NEEDED){
+    addLog('Clue compass: no parchment resonance outside the return hunt.',M.sub);
+    return{ok:false};
+  }
+  let best=null,bd=1e9;
+  for(const it of Object.values(items)){
+    if(it.kind!=='clue')continue;
+    const d=Math.abs(it.x-G.px)+Math.abs(it.y-G.py);
+    if(d<bd){bd=d;best=it;}
+  }
+  if(!best){addLog('Clue compass: no unseen * signatures on this level.',M.yel);return{ok:true,turn:true};}
+  const dir=bearingLabel(G.px,G.py,best.x,best.y);
+  addLog(`Clue compass points ${dir} (~${bd} tiles).`,M.tea);
+  return{ok:true,turn:true};
+}
+function useAppraisalMonocle(){
+  const shop=activeShop();
+  if(shop){
+    const entries=G.shopMode==='stock'?shopStockEntries(shop.stock):sellEntries();
+    const ent=entries[G.shopCursor||0];
+    if(ent){inspectItem(ent.item,G.shopMode==='stock'?'Shop item':'Sell item');return{ok:true,turn:false};}
+  }
+  const bag=G.invView==='backpack'?G.backpackInv:G.inventory;
+  const it=bag[G.invCursor];
+  if(it){inspectItem(it);return{ok:true,turn:false};}
+  addLog('Appraisal monocle: select an item to inspect (or open a shop).',M.sub);
+  return{ok:false};
+}
+function hasAppraisalMonocle(){
+  return[...G.inventory,...G.backpackInv].some(it=>it.gadget==='appraisal_monocle'||/appraisal monocle/i.test(it.name));
+}
+function toggleLootMagnet(){
+  G.lootMagnet=!G.lootMagnet;
+  addLog(G.lootMagnet?'Loot magnet engaged — chambers auto-sweep each turn.':'Loot magnet disengaged.',G.lootMagnet?M.grn:M.sub);
+  return{ok:true,turn:false};
+}
+function lootMagnetSweep(){
+  if(!G.lootMagnet)return;
+  const room=roomAt(G.px,G.py);
+  if(!room)return;
+  let n=0;
+  for(const it of Object.values({...items})){
+    if(roomContains(room,it.x,it.y)&&pickupItem(it))n++;
+  }
+  if(n)addLog(`Loot magnet pulled ${n} item${n>1?'s':''}.`,M.yel);
+}
+function hasCoinPurse(){
+  const a=G.equipped.amulet;
+  return !!(a&&(a.gadget==='coin_purse'||/coin purse/i.test(a.name)));
+}
+function shopVendorKey(level,x,y){return `${level}:${x},${y}`;}
+function activeShopVendor(){
+  const sp=activeShop();if(!sp)return null;
+  if(_remoteShopCtx)return shopVendorKey(_remoteShopCtx.level,_remoteShopCtx.x,_remoteShopCtx.y);
+  for(const[k,s] of Object.entries(specials))if(s===sp){const[x,y]=k.split(',').map(Number);return shopVendorKey(G.level,x,y);}
+  return null;
+}
+function shopLoyaltyRate(vendorKey){
+  const n=G.shopLoyalty[vendorKey]||0;
+  let rate=0;
+  for(const[need,disc] of LOYALTY_TIERS)if(n>=need)rate=disc;
+  return rate;
+}
+function shopBuyPrice(it,vendorKey){
+  const base=Number(it.valueCp||0);
+  const disc=vendorKey?shopLoyaltyRate(vendorKey):0;
+  return Math.max(1,Math.floor(base*(1-disc)));
+}
+function noteShopPurchase(vendorKey){
+  if(!vendorKey)return;
+  G.shopLoyalty[vendorKey]=(G.shopLoyalty[vendorKey]||0)+1;
+  const n=G.shopLoyalty[vendorKey];
+  const tier=LOYALTY_TIERS.filter(([need])=>n===need).pop();
+  if(tier)addLog(`Vendor loyalty ${Math.round(tier[1]*100)}% discount unlocked (${n} purchases).`,M.tea);
+}
+function placeBuyOrder(itemName){
+  const shop=activeShop();if(!shop){addLog('Not at a shop.',M.red);return;}
+  const vendor=activeShopVendor();if(!vendor){addLog('Cannot place order — vendor unknown.',M.red);return;}
+  const entries=shopStockEntries(shop.stock);
+  const token=String(itemName||'').trim();
+  let it=null;
+  if(/^\d+$/.test(token))it=entries[Number(token)-1]?.item;
+  else it=entries.find(e=>e.item.name.toLowerCase().includes(token.toLowerCase()))?.item;
+  if(!it){addLog(`Not in stock: ${itemName}`,M.red);return;}
+  const cost=Math.ceil(shopBuyPrice(it,vendor)*1.1);
+  if(G.walletCp<cost){addLog(`Order needs ${cost}cp (110% hold). Have ${G.walletCp}cp.`,M.red);return;}
+  G.walletCp-=cost;
+  G.buyOrders.push({vendorKey:vendor,level:G.level,x:_remoteShopCtx?.x??null,y:_remoteShopCtx?.y??null,
+    item:{...it,id:`ord${++_seq}`},paidCp:cost,placedAt:G.turnCount});
+  addLog(`Ordered ${it.name} for ${cost}cp — arrives on next vendor restock.`,M.pch);
+}
+function fulfillBuyOrdersForShop(sp,level,x,y){
+  const key=shopVendorKey(level,x,y);
+  const pending=G.buyOrders.filter(o=>o.vendorKey===key);
+  if(!pending.length)return;
+  G.buyOrders=G.buyOrders.filter(o=>o.vendorKey!==key);
+  for(const o of pending){
+    sp.stock.unshift({...o.item,id:`it${++_seq}`,_ordered:true});
+    addLog(`Buy order fulfilled: ${o.item.name} at vendor (level ${level}).`,M.grn);
+  }
+  sp.stock=sp.stock.slice(0,SHOP_MAX_STOCK);
+}
+function restockAllShops(){
+  for(let lvl=0;lvl<levelStore.length;lvl++){
+    const map=lvl===G.level?specials:levelStore[lvl]?.specials;
+    if(!map)continue;
+    for(const[key,sp] of Object.entries(map)){
+      if(sp.kind!=='shop')continue;
+      const[x,y]=key.split(',').map(Number);
+      fulfillBuyOrdersForShop(sp,lvl,x,y);
+      const add=ri(4,8);
+      for(let i=0;i<add&&sp.stock.length<SHOP_MAX_STOCK;i++)sp.stock.push(shopRestockPick(effectiveThreatLvl(lvl)));
+      sp.stock=sp.stock.slice(0,SHOP_MAX_STOCK);
+    }
+  }
+}
+function doTradeInPack(name){
+  const shop=activeShop();if(!shop){addLog('Trade-in requires a quartermaster.',M.red);return;}
+  const cur=G.equipped.back;
+  if(!cur){addLog('Equip a backpack to trade in.',M.red);return;}
+  const token=String(name||'').trim().toLowerCase();
+  const entries=shopStockEntries(shop.stock);
+  let upgrade=entries.find(e=>e.item.kind==='backpack'&&e.item.name.toLowerCase().includes(token))?.item;
+  if(!upgrade)upgrade=findHeldItem(name,it=>it.kind==='backpack');
+  if(!upgrade||upgrade.kind!=='backpack'){addLog('No upgrade pack matching that name.',M.red);return;}
+  const idx=shop.stock.indexOf(upgrade);
+  const fromShop=idx>=0;
+  const newCap=itemEffectiveStats(upgrade)?.bagSlots||Number(upgrade.bagCap||0);
+  if(G.backpackInv.length>newCap){addLog(`New pack only holds ${newCap} — stash items first.`,M.red);return;}
+  const credit=Math.floor(Number(cur.valueCp||0)*0.5);
+  const cost=Math.max(0,shopBuyPrice(upgrade,activeShopVendor())-credit);
+  if(G.walletCp<cost){addLog(`Trade-in needs ${cost}cp after ${credit}cp credit.`,M.red);return;}
+  G.walletCp-=cost;
+  if(fromShop)shop.stock.splice(idx,1);
+  else removeHeldItem(upgrade);
+  G.equipped.back=fromShop?{...upgrade,id:`it${++_seq}`}:upgrade;
+  addLog(`Traded ${cur.name} → ${G.equipped.back.name} for ${cost}cp (${credit}cp credit).`,M.grn);
+  computeVisible(visionRadius());
+}
+function pinWaypoint(){
+  if(G.waypoints.length>=WAYPOINT_MAX){addLog(`Waypoint limit (${WAYPOINT_MAX}) — clear one first with unpin.`,M.yel);return;}
+  const room=roomAt(G.px,G.py);
+  const label=room?.name||`L${G.level} (${G.px},${G.py})`;
+  G.waypoints.push({level:G.level,x:G.px,y:G.py,label:label.slice(0,28)});
+  addLog(`Waypoint pinned: ${label}`,M.tea);
+}
+function unpinWaypoint(idx=G.waypoints.length-1){
+  if(!G.waypoints.length){addLog('No waypoints pinned.',M.sub);return;}
+  const w=G.waypoints.splice(Math.max(0,Math.min(idx,G.waypoints.length-1)),1)[0];
+  addLog(`Waypoint removed: ${w.label}`,M.sub);
+}
+function teleportWaypoint(i){
+  const w=G.waypoints[i];
+  if(!w){addLog('Invalid waypoint.',M.red);return false;}
+  if(!levelStore[w.level]){addLog('That waypoint is unreachable.',M.red);return false;}
+  loadLevel(w.level,w.x,w.y);
+  addLog(`Warped to waypoint: ${w.label}`,M.tea);
+  return true;
+}
+function mkBlackMarketStock(lvl=0){
+  const eff=effectiveThreatLvl(lvl)+1;
+  const mods=sh([...BLACK_MARKET_MODULES]).slice(0,ri(4,6));
+  return mods.map(mn=>{
+    const it=mkShopModule(eff);
+    it.illegal=true;
+    it.heatCost=1.2+rf()*0.8;
+    it.valueCp=Math.floor(Number(it.valueCp||200)*1.4);
+    return it;
+  });
+}
+function blackMarketTerminal(){
+  for(let dy=-1;dy<=1;dy++)for(let dx=-1;dx<=1;dx++){
+    const sp=specials[`${G.px+dx},${G.py+dy}`];
+    if(sp?.kind==='terminal'&&sp.hacked&&sp.blackMarket)return sp;
+  }
+  return null;
+}
+function openBlackMarket(){
+  const term=blackMarketTerminal();
+  if(!term){addLog('No rooted black-market terminal adjacent.',M.red);return;}
+  if(!term.blackMarketStock?.length)term.blackMarketStock=mkBlackMarketStock(G.level);
+  G._blackMarketTerm=term;
+  G.overlay='black_market';
+  G.shopCursor=0;G.shopScroll=0;G.shopMode='stock';
+}
+function doBuyBlackMarket(name){
+  const term=G._blackMarketTerm||blackMarketTerminal();
+  if(!term?.blackMarketStock){addLog('Black market offline.',M.red);return;}
+  const stock=term.blackMarketStock;
+  const token=String(name||'').trim().toLowerCase();
+  let it=stock.find(x=>x.name.toLowerCase().includes(token));
+  if(/^\d+$/.test(token))it=shopStockEntries(stock)[Number(token)-1]?.item;
+  if(!it){addLog(`Not offered: ${name}`,M.red);return;}
+  const idx=stock.indexOf(it);
+  const cost=Number(it.valueCp||0);
+  const heat=Number(it.heatCost||1.5);
+  if(G.walletCp<cost){addLog(`Need ${cost}cp.`,M.red);return;}
+  const bought={...it,id:`it${++_seq}`};
+  if(!addHeldItem(bought))return;
+  G.walletCp-=cost;
+  addHeat(heat);
+  stock.splice(idx,1);
+  if(bought.kind==='module')installModuleItem(bought,'black market');
+  addLog(`Black market: ${it.name} for ${cost}cp (+${heat.toFixed(1)} heat).`,M.red);
+}
+let _remoteCraftCtx=null;
+function clearRemoteCraft(){_remoteCraftCtx=null;}
+function getStationSpecial(level,x,y,station){
+  const sp=level===G.level?specials[`${x},${y}`]:levelStore[level]?.specials?.[`${x},${y}`];
+  return sp?.kind==='station'&&sp.station===station?sp:null;
+}
+function findNearestStationOnLevel(station,lvl=G.level){
+  const map=lvl===G.level?specials:levelStore[lvl]?.specials;
+  if(!map)return null;
+  let best=null,bd=1e9;
+  for(const[key,sp] of Object.entries(map)){
+    if(sp.kind!=='station'||sp.station!==station)continue;
+    const[x,y]=key.split(',').map(Number);
+    const d=lvl===G.level?Math.abs(x-G.px)+Math.abs(y-G.py):0;
+    if(d<bd){bd=d;best={level:lvl,x,y,station};}
+  }
+  return best;
+}
+function resolveAnvilBeaconTarget(){
+  if(adjStation('anvil'))return{adjacent:true,station:'anvil'};
+  const near=findNearestStationOnLevel('anvil',G.level);
+  if(near)return{...near,adjacent:false,cached:false};
+  const dest=G.travel.anvil;
+  if(dest&&getStationSpecial(dest.level,dest.x,dest.y,'anvil'))
+    return{level:dest.level,x:dest.x,y:dest.y,station:'anvil',adjacent:false,cached:true};
+  const tbl=findNearestStationOnLevel('table',G.level)||(G.travel.table&&getStationSpecial(G.travel.table.level,G.travel.table.x,G.travel.table.y,'table')?{...G.travel.table,station:'table',cached:true}:null);
+  if(tbl)return{...tbl,adjacent:false};
+  return null;
+}
+function craftStationOk(station){
+  if(!station)return true;
+  if(adjStation(station))return true;
+  return !!(_remoteCraftCtx&&_remoteCraftCtx.station===station);
+}
+function useAnvilBeacon(){
+  const ref=resolveAnvilBeaconTarget();
+  if(!ref){addLog('Anvil beacon: no anvil or table on record.',M.red);return{ok:false};}
+  if(ref.adjacent){
+    clearRemoteCraft();
+    openCraftPanel();
+    addLog('Anvil beacon synced with local station.',M.tea);
+    return{ok:true,turn:false};
+  }
+  _remoteCraftCtx={level:ref.level,x:ref.x,y:ref.y,station:ref.station||'anvil'};
+  G.overlay='craft';
+  G.craftView=ref.station==='table'?'recipes':'socket';
+  G.craftCursor=0;G.craftScroll=0;G.gemCursor=0;G.gemScroll=0;G.craftConfirm=null;G.craftMsg='';
+  const via=ref.cached?'cached':'nearest';
+  addLog(`Anvil beacon uplink (${via} ${ref.station}) on level ${ref.level}.`,M.yel);
+  return{ok:true,turn:true};
+}
 function currentShop(){
   for(let dy=-1;dy<=1;dy++)for(let dx=-1;dx<=1;dx++){
     const sp=specials[`${G.px+dx},${G.py+dy}`];
@@ -8066,12 +8873,18 @@ function openTravelPanel(){
   G.travelCursor=firstKnown>=0?firstKnown:0;
 }
 function doTravelTeleport(type){
-  const ok=teleportTravel(type);
+  let ok=false;
+  if(String(type).startsWith('pin:'))ok=teleportWaypoint(Number(type.slice(4)));
+  else ok=teleportTravel(type);
   G.travelConfirm=null;
   G.overlay=null;
   if(ok)endTurn();
 }
-function sellPrice(it){return Math.max(1,Math.floor(Number(it.valueCp||0)*0.6));}
+function sellPrice(it){
+  let p=Math.max(1,Math.floor(Number(it.valueCp||0)*0.6));
+  if(hasCoinPurse())p=Math.floor(p*1.15);
+  return p;
+}
 function sellEntries(){
   const arr=[...G.inventory.map(item=>({origin:'bag',item,slot:item.slot})),...G.backpackInv.map(item=>({origin:'backpack',item,slot:item.slot}))]
     .filter(({item})=>!['key','clue','currency'].includes(item.kind));
@@ -8079,7 +8892,7 @@ function sellEntries(){
   return sortCatalogEntries(arr,shopCategoryOrder());
 }
 function doBuy(name){
-  const shop=currentShop();if(!shop){addLog('Not at a shop.',M.red);return;}
+  const shop=activeShop();if(!shop){addLog('Not at a shop.',M.red);return;}
   const entries=shopStockEntries(shop.stock);
   const token=String(name||'').trim();
   let it=null;
@@ -8088,15 +8901,19 @@ function doBuy(name){
   if(!it){addLog(`Not in stock: ${name}`,M.red);return;}
   const idx=shop.stock.indexOf(it);
   if(idx<0){addLog(`Not in stock: ${name}`,M.red);return;}
-  if(G.walletCp<it.valueCp){addLog(`Need ${it.valueCp}cp. Have ${G.walletCp}cp.`,M.red);return;}
+  const vendor=activeShopVendor();
+  const price=shopBuyPrice(it,vendor);
+  if(G.walletCp<price){addLog(`Need ${price}cp. Have ${G.walletCp}cp.`,M.red);return;}
   const bought={...it,id:`it${++_seq}`};
   if(!addHeldItem(bought))return;
-  G.walletCp-=it.valueCp;shop.stock.splice(idx,1);
+  G.walletCp-=price;shop.stock.splice(idx,1);
+  noteShopPurchase(vendor);
   if(bought.kind==='module')installModuleItem(bought,'bought module');
-  addLog(`Bought ${it.name} for ${it.valueCp}cp.`,M.grn);
+  const disc=vendor?shopLoyaltyRate(vendor):0;
+  addLog(`Bought ${it.name} for ${price}cp${disc?` (${Math.round(disc*100)}% loyalty)`:''}.`,M.grn);
 }
 function doSell(name){
-  const shop=currentShop();if(!shop){addLog('Not at a shop.',M.red);return;}
+  const shop=activeShop();if(!shop){addLog('Not at a shop.',M.red);return;}
   const it=findHeldItem(name);
   if(!it){addLog(`Not in inventory: ${name}`,M.red);return;}
   if(['key','clue','currency'].includes(it.kind)){addLog('Cannot sell quest items or loose coin.',M.red);return;}
@@ -8353,6 +9170,7 @@ function processCmd(cmd){
   if(low==='craft'||low==='crafting'){openCraftPanel();return;}
   if(low==='skills'||low==='skill'){G.overlay='skills';return;}
   if(low==='map'||low==='minimap'){openMapPanel();return;}
+  if(low==='save'){manualSave();return;}
   if(low==='export'||low==='download'||low==='savefile'){if(levelStore.length)saveRunState();exportRunSave(_activeRunSlot);return;}
   if(low==='import'||low==='loadfile'){promptImportRunSave(_activeRunSlot);return;}
   if(low==='journal'||low==='notes'){G.overlay='journal';return;}
@@ -8398,6 +9216,7 @@ function processCmd(cmd){
     addLog(`Vulnscan ${t.ssid}:`,M.blu);
     for(const[proto,port] of svcs){const v=SVC_VULNS[`${proto}:${port}`];if(v)addLog(`  ${proto}/${port}: ${v[0].slice(0,44)} -> ${v[1]} ${hasTool(v[1])?'OK':'MISS'}`,hasTool(v[1])?M.grn:M.yel);}
     if(t.honeypot)addLog('  HONEYPOT indicators present. Expect heat spike on failure.',M.red);
+    else if(specials[t.key]?.honeypotSniffed)addLog('  [sniffer] confirmed clean — no honeypot trap.',M.grn);
     const mode=parts[1]||'balanced';
     const gaps=toolGaps(t,mode),mods=moduleGaps(t,mode),res=resourceGaps(t,mode);
     addLog(`  ${mode} chance: ${Math.round(hackChance(t,mode)*100)}%`,M.blu);
@@ -8471,7 +9290,27 @@ function processCmd(cmd){
     });
   } else if(c==='equip'){doEquip(parts.slice(1).join(' '));endTurn();}
   else if(c==='unequip'){doUnequip(parts[1]||'');endTurn();}
-  else if(c==='drink'||c==='use'){doDrink(parts.slice(1).join(' '));endTurn();}
+  else if(c==='drink'||c==='use'){
+    const name=parts.slice(1).join(' ');
+    const pot=findHeldItem(name,it=>it.kind==='potion');
+    if(pot){doDrink(name);endTurn();}
+    else{
+      const con=findHeldItem(name,it=>it.kind==='consumable');
+      if(con){const r=useConsumable(con);if(r.ok){if(r.turn)endTurn();else render();}}
+      else{
+        const gad=findHeldItem(name,it=>it.kind==='gadget');
+        if(gad){
+          const r=useGadget(gad);
+          if(r.ok){if(r.turn)endTurn();else render();}
+        }else addLog(`Cannot use: ${name||'(nothing specified)'}`,M.red);
+      }
+    }
+  }
+  else if(c==='order'){placeBuyOrder(parts.slice(1).join(' '));}
+  else if(c==='tradein'||c==='trade-in'){doTradeInPack(parts.slice(1).join(' '));}
+  else if(c==='pin'||c==='waypoint'){pinWaypoint();}
+  else if(c==='unpin'){unpinWaypoint(parts[1]?Number(parts[1])-1:undefined);}
+  else if(c==='blackmarket'||c==='black_market'){openBlackMarket();}
   else if(c==='drop'){
     if(parts.length===1){
       const sp=specials[`${G.px},${G.py}`];
@@ -8501,7 +9340,7 @@ function processCmd(cmd){
   else if(c==='look'||c==='examine'){lookAround();}
   else if(c==='search'){searchHere();}
   else if(c==='autoloot'||c==='loot'){autoLootRoom();}
-  else if(c==='shop'){if(currentShop()){G.overlay='shop';G.shopCursor=0;G.shopScroll=0;}else addLog('No quartermaster nearby.',M.red);}
+  else if(c==='shop'){if(currentShop())openShopPanel(true);else if(activeShop())openShopPanel(false);else addLog('No quartermaster nearby — use a shop link.',M.red);}
   else if(c==='descend'||c==='ascend'){
     const sp=specials[`${G.px},${G.py}`];
     if(!sp||!(sp.kind==='stairs_up'||sp.kind==='stairs_down')){addLog('Not on stairs.',M.red);return;}
@@ -8543,7 +9382,7 @@ document.addEventListener('keydown',e=>{
   if(k==='m'||k==='M'){openMapPanel();render();return;}
   if(k==='i'||k==='I'){G.overlay='inventory';G.invCursor=0;G.invScroll=0;render();return;}
   if(k==='g'||k==='G'){openCraftPanel();render();return;}
-  if(k==='p'||k==='P'){if(currentShop()){G.overlay='shop';G.shopCursor=0;G.shopScroll=0;}else G.overlay='toolkit';render();return;}
+  if(k==='p'||k==='P'){if(currentShop())openShopPanel(true);else G.overlay='toolkit';render();return;}
   if(k==='0'){G.overlay='console';G.consoleCursor=0;G.consoleInvCursor=0;G.consoleFocus='slots';render();return;}
   if(k==='o'||k==='O'){openLogOverlay();render();return;}
   if(k==='='){G.overlay='summary';render();return;}
@@ -8613,11 +9452,16 @@ function handleArchKey(e){
 function startRun(){
   clearRunState(_activeRunSlot);
   resetPanelSaveTrack(null);
+  clearRemoteShop();
+  clearRemoteCraft();
+  clearRemoteTerm();
   G.overlay=null;
   G.escaped=false;
   G.phase='escape';
   G.clues=0;
   G.portalArmed=false;
+  G.smokeUntil=0;
+  G.travel={shop:null,anvil:null,table:null,terminal:null};
   generateDungeon();generateContracts();
   if(BONUS)applyBonus();
   G._lastStoryTier=storyTier();
@@ -8646,7 +9490,13 @@ function handleOverlayKey(e){
     G.travelConfirm=null;
     return;
   }
-  if(e.key==='Escape'||e.key==='q'){G.overlay=null;return;}
+  if(e.key==='Escape'||e.key==='q'){
+    if(G.overlay==='shop')clearRemoteShop();
+    if(G.overlay==='craft')clearRemoteCraft();
+    if(G.overlay==='module_select'||G.overlay==='hack')clearRemoteTerm();
+    if(G.overlay==='black_market')G._blackMarketTerm=null;
+    G.overlay=null;return;
+  }
   if(G.overlay==='log'){
     const geo=logOverlayGeometry();
     const rows=logOverlayRows(geo.contentW),contentH=geo.contentH,maxScroll=Math.max(0,rows.length-contentH);
@@ -8680,17 +9530,18 @@ function handleOverlayKey(e){
     else if(e.key==='ArrowRight'||e.key==='d'||e.key==='l')MAPV.ox-=step;
     mapClampPan();
   } else if(G.overlay==='travel'){
+    const entries=travelEntries();
     if(G.travelConfirm){
       if(e.key==='Enter'||e.key==='y'||e.key==='Y')doTravelTeleport(G.travelConfirm);
       return;
     }
     if(e.key==='ArrowUp'||e.key==='k')G.travelCursor=Math.max(0,(G.travelCursor||0)-1);
-    else if(e.key==='ArrowDown'||e.key==='j')G.travelCursor=Math.min(TRAVEL_TYPES.length-1,(G.travelCursor||0)+1);
+    else if(e.key==='ArrowDown'||e.key==='j')G.travelCursor=Math.min(entries.length-1,(G.travelCursor||0)+1);
     else if(e.key==='Home')G.travelCursor=0;
-    else if(e.key==='End')G.travelCursor=TRAVEL_TYPES.length-1;
+    else if(e.key==='End')G.travelCursor=Math.max(0,entries.length-1);
     else if(e.key==='Enter'){
-      const t=TRAVEL_TYPES[G.travelCursor||0];
-      if(t&&G.travel[t.key])G.travelConfirm=t.key;
+      const ent=entries[G.travelCursor||0];
+      if(ent?.dest)G.travelConfirm=ent.id;
       else addLog('That destination is not known yet.',M.red);
     }
   } else if(G.overlay==='inventory'){
@@ -8722,6 +9573,8 @@ function handleOverlayKey(e){
       const ent=entries[G.invCursor];const sel=ent?.item;
       if(ent&&ent.origin==='equipped')addLog('Unequip this item before using it.',M.red);
       else if(sel&&sel.kind==='potion'){doDrink(sel.name);endTurn();}
+      else if(sel&&sel.kind==='consumable'){const r=useConsumable(sel);if(r.ok){if(r.turn)endTurn();else render();}}
+      else if(sel&&sel.kind==='gadget'){const r=useGadget(sel);if(r.ok){if(r.turn)endTurn();else render();}}
       else if(sel&&sel.kind==='module'){installModuleItem(sel,'inventory');removeHeldItem(sel);endTurn();}
       else if(sel&&sel.kind==='console_part'){installConsolePart(sel);endTurn();}
       else addLog('That item cannot be used from here.',M.sub);
@@ -8729,6 +9582,8 @@ function handleOverlayKey(e){
     else if(e.key==='Enter'){
       const ent=entries[G.invCursor];const sel=ent?.item;
       if(sel&&sel.kind==='potion'){doDrink(sel.name);endTurn();}
+      else if(sel&&sel.kind==='consumable'){const r=useConsumable(sel);if(r.ok){if(r.turn)endTurn();else render();}}
+      else if(sel&&sel.kind==='gadget'){const r=useGadget(sel);if(r.ok){if(r.turn)endTurn();else render();}}
       else if(sel&&sel.kind==='module'){installModuleItem(sel,'inventory');removeHeldItem(sel);endTurn();}
       else if(sel&&sel.kind==='console_part'){installConsolePart(sel);endTurn();}
     }
@@ -8780,7 +9635,7 @@ function handleOverlayKey(e){
       else if(e.key==='Enter')beginSocketConfirm();
     }
   } else if(G.overlay==='shop'){
-    const shop=currentShop();if(!shop){G.overlay=null;return;}
+    const shop=activeShop();if(!shop){clearRemoteShop();G.overlay=null;return;}
     const entries=G.shopMode==='stock'?shopStockEntries(shop.stock):sellEntries();
     const layout=shopListPanelLayout(entries,G.shopCursor||0);
     const pg=Math.max(1,layout.visibleCount);
@@ -8804,8 +9659,22 @@ function handleOverlayKey(e){
         else inspectItem(ent.item);
       }
     }
+    else if(e.key==='o'||e.key==='O'){const ent=entries[G.shopCursor];if(ent&&G.shopMode==='stock')placeBuyOrder(ent.item.name);}
     else if(e.key==='s'||e.key==='S'){G.shopMode='bag';G.shopCursor=0;G.shopScroll=0;}
     else if(e.key==='b'||e.key==='B'){G.shopMode='stock';G.shopCursor=0;G.shopScroll=0;}
+    G.shopScroll=invEnsureScroll(entries,G.shopCursor||0,layout.listBudget,G.shopScroll||0);
+  } else if(G.overlay==='black_market'){
+    const term=G._blackMarketTerm||blackMarketTerminal();
+    const stock=term?.blackMarketStock||[];
+    const entries=shopStockEntries(stock);
+    const layout=shopListPanelLayout(entries,G.shopCursor||0);
+    const pg=Math.max(1,layout.visibleCount);
+    if(e.key==='ArrowUp'||e.key==='k')G.shopCursor=Math.max(0,G.shopCursor-1);
+    else if(e.key==='ArrowDown'||e.key==='j')G.shopCursor=Math.min(Math.max(0,entries.length-1),G.shopCursor+1);
+    else if(e.key==='PageUp')G.shopCursor=Math.max(0,G.shopCursor-pg);
+    else if(e.key==='PageDown')G.shopCursor=Math.min(Math.max(0,entries.length-1),G.shopCursor+pg);
+    else if(e.key==='Enter'){const ent=entries[G.shopCursor];if(ent){doBuyBlackMarket(ent.item.name);endTurn();}}
+    else if(e.key==='x'||e.key==='X'){const ent=entries[G.shopCursor];if(ent)inspectItem(ent.item,'Black market');}
     G.shopScroll=invEnsureScroll(entries,G.shopCursor||0,layout.listBudget,G.shopScroll||0);
   } else if(G.overlay==='hack'){
     const modes=Object.keys(MODE_SKILL);
@@ -8814,7 +9683,7 @@ function handleOverlayKey(e){
     else if(e.key==='Enter'){execHack(modes[G.hackCursor]);G.overlay=null;endTurn();}
   } else if(G.overlay==='module_select'){
     const mods=[...G.modules];const loadout=G.hackLoadout;
-    if(e.key==='Escape'){G.overlay=null;render();return;}
+    if(e.key==='Escape'){clearRemoteTerm();G.overlay=null;render();return;}
     if(e.key==='h'||e.key==='H'){
       execHackFromLoadout();
       render();return;
@@ -8878,7 +9747,7 @@ function doRangedShot(dx,dy){
       addSkillXP('ranged',1);
       if(e.hp<=0){awardKill(e,'shoot down');}
       else{addLog(`Shot ${e.name} for ${dmg}.`,M.yel);e.alerted=true;e.alertTimer=8;}
-      heatBump(1);G.stealthMode=false;hit=true;break;
+      heatBump(1);breakStealth();hit=true;break;
     }
   }
   if(!hit)addLog('Ranged shot: missed.',M.sub);
@@ -8925,11 +9794,74 @@ function restartGame(){
   location.reload();
 }
 
-// ── localStorage meta-progression ────────────────────────────
+// ── IndexedDB persistence (profile + run slots) ───────────────
 const RUN_SLOT_COUNT=4;
 const RUN_INDEX_KEY='arthack_run_index';
+const PROFILE_KEY='arthack_save';
 const RUN_SAVE_LEGACY='arthack_run';
 const runSlotKey=slot=>`arthack_run_${slot}`;
+const IDB_NAME='arthack';
+const IDB_STORE='kv';
+let _idb=null,_idbReady=null,_storageBackend='idb';
+const _idbCache=new Map();
+function idbPut(key,val){
+  if(!_idb)return;
+  try{const tx=_idb.transaction(IDB_STORE,'readwrite');tx.objectStore(IDB_STORE).put(val,key);}catch{}
+}
+function idbDelete(key){
+  if(!_idb)return;
+  try{const tx=_idb.transaction(IDB_STORE,'readwrite');tx.objectStore(IDB_STORE).delete(key);}catch{}
+}
+function storageGet(key){
+  if(_storageBackend==='local'){try{return localStorage.getItem(key);}catch{return null;}}
+  return _idbCache.has(key)?_idbCache.get(key):null;
+}
+function storageSet(key,val){
+  if(_storageBackend==='local'){try{localStorage.setItem(key,val);}catch{};return;}
+  _idbCache.set(key,val);idbPut(key,val);
+}
+function storageRemove(key){
+  if(_storageBackend==='local'){try{localStorage.removeItem(key);}catch{};return;}
+  _idbCache.delete(key);idbDelete(key);
+}
+function idbLoadAll(){
+  return new Promise((resolve,reject)=>{
+    const tx=_idb.transaction(IDB_STORE,'readonly');
+    const req=tx.objectStore(IDB_STORE).openCursor();
+    req.onsuccess=e=>{
+      const cur=e.target.result;
+      if(cur){_idbCache.set(cur.key,cur.value);cur.continue();}
+      else resolve();
+    };
+    req.onerror=()=>reject(req.error);
+  });
+}
+function migrateFromLocalStorage(){
+  const keys=[RUN_INDEX_KEY,PROFILE_KEY,RUN_SAVE_LEGACY,...Array.from({length:RUN_SLOT_COUNT},(_,i)=>runSlotKey(i))];
+  for(const k of keys){
+    try{
+      const v=localStorage.getItem(k);
+      if(v==null)continue;
+      if(!_idbCache.has(k)){_idbCache.set(k,v);idbPut(k,v);}
+      localStorage.removeItem(k);
+    }catch{}
+  }
+}
+function openSaveStorage(){
+  if(_idbReady)return _idbReady;
+  _idbReady=new Promise(resolve=>{
+    if(!window.indexedDB){_storageBackend='local';resolve();return;}
+    const req=indexedDB.open(IDB_NAME,1);
+    req.onupgradeneeded=e=>{e.target.result.createObjectStore(IDB_STORE);};
+    req.onsuccess=async e=>{
+      _idb=e.target.result;
+      try{await idbLoadAll();migrateFromLocalStorage();}catch{}
+      resolve();
+    };
+    req.onerror=()=>{_storageBackend='local';resolve();};
+  });
+  return _idbReady;
+}
 let _activeRunSlot=0;
 const PANEL_SAVE_OVERLAYS=new Set(['inventory','craft','shop','skills','toolkit','console','log','journal','secrets','help','commands','summary','term_shell','hack','module_select']);
 let _panelSaveOverlay=null;
@@ -8990,7 +9922,7 @@ function unpackGridLegacyRows(rows){
 }
 function loadRunIndex(){
   try{
-    const raw=localStorage.getItem(RUN_INDEX_KEY);
+    const raw=storageGet(RUN_INDEX_KEY);
     if(raw){
       const idx=JSON.parse(raw);
       if(idx&&Array.isArray(idx.slots))return idx;
@@ -8998,7 +9930,7 @@ function loadRunIndex(){
   }catch{}
   return{v:1,slots:Array(RUN_SLOT_COUNT).fill(null)};
 }
-function saveRunIndex(idx){try{localStorage.setItem(RUN_INDEX_KEY,JSON.stringify(idx));}catch{}}
+function saveRunIndex(idx){try{storageSet(RUN_INDEX_KEY,JSON.stringify(idx));}catch{}}
 function runMetaFromData(data){
   if(!data?.G)return null;
   return{
@@ -9018,15 +9950,15 @@ function firstOccupiedRunSlot(){
 }
 function migrateLegacyRunSave(){
   try{
-    const legacy=localStorage.getItem(RUN_SAVE_LEGACY);
+    const legacy=storageGet(RUN_SAVE_LEGACY);
     if(!legacy)return;
     const idx=loadRunIndex();
-    if(idx.slots.some(Boolean)){localStorage.removeItem(RUN_SAVE_LEGACY);return;}
-    localStorage.setItem(runSlotKey(0),legacy);
+    if(idx.slots.some(Boolean)){storageRemove(RUN_SAVE_LEGACY);return;}
+    storageSet(runSlotKey(0),legacy);
     const meta=runMetaFromData(JSON.parse(legacy));
     if(meta)idx.slots[0]=meta;
     saveRunIndex(idx);
-    localStorage.removeItem(RUN_SAVE_LEGACY);
+    storageRemove(RUN_SAVE_LEGACY);
   }catch{}
 }
 function packLevelForSave(lvl){
@@ -9077,13 +10009,30 @@ function packGForSave(){
     nextRestockTurn:G.nextRestockTurn,difficultyMult:G.difficultyMult,
     showMinimap:G.showMinimap,invView:G.invView,shopMode:G.shopMode,
     travel:JSON.parse(JSON.stringify(G.travel||{shop:null,anvil:null,table:null})),
+    waypoints:JSON.parse(JSON.stringify(G.waypoints||[])),
+    buyOrders:JSON.parse(JSON.stringify(G.buyOrders||[])),
+    shopLoyalty:{...G.shopLoyalty},
+    lootMagnet:!!G.lootMagnet,decoyUntil:G.decoyUntil||0,decoyPos:G.decoyPos?{...G.decoyPos}:null,
+    smokeUntil:G.smokeUntil||0,
+    sessionHackBonus:G.sessionHackBonus||0,burnerSimReady:!!G.burnerSimReady,gadgetCD:{...G.gadgetCD},
     _lastStoryTier:G._lastStoryTier,_pivotFreeLvl:G._pivotFreeLvl
   };
 }
 function applyGFromSave(p){
   Object.assign(G,p);
-  G.travel=p.travel||{shop:null,anvil:null,table:null};
+  G.travel=p.travel||{shop:null,anvil:null,table:null,terminal:null};
+  if(!G.travel.terminal)G.travel.terminal=null;
   G.travelConfirm=null;
+  G.waypoints=p.waypoints||[];
+  G.buyOrders=p.buyOrders||[];
+  G.shopLoyalty=p.shopLoyalty||{};
+  G.lootMagnet=!!p.lootMagnet;
+  G.decoyUntil=p.decoyUntil||0;
+  G.decoyPos=p.decoyPos||null;
+  G.smokeUntil=p.smokeUntil||0;
+  G.sessionHackBonus=p.sessionHackBonus||0;
+  G.burnerSimReady=!!p.burnerSimReady;
+  G.gadgetCD={...p.gadgetCD};
   G.modules=new Set(p.modules||[]);
   G.tools=new Set(p.tools||[]);
   G.resources={
@@ -9128,15 +10077,14 @@ function hasRunSave(){
   return false;
 }
 function clearRunState(slot=_activeRunSlot){
-  try{localStorage.removeItem(runSlotKey(slot));}catch{}
+  try{storageRemove(runSlotKey(slot));}catch{}
   const idx=loadRunIndex();
   idx.slots[slot]=null;
   saveRunIndex(idx);
 }
 // ── LZ compression for saves (lz-string compressToUTF16/decompressFromUTF16) ──
-// A full run serialises to ~2MB of JSON; localStorage stores UTF-16 (2 bytes/char)
-// so an uncompressed save can blow past mobile's ~5MB quota. Compress on the way
-// in and out. (Canonical lz-string algorithm, UTF-16 variant.)
+// A full run serialises to ~2MB of JSON; compress on the way in and out.
+// (Canonical lz-string algorithm, UTF-16 variant.)
 const LZString=(function(){
   const f=String.fromCharCode;
   function _compress(uncompressed,bitsPerChar,getCharFromInt){
@@ -9233,10 +10181,10 @@ const SAVE_LZ_PREFIX='LZ';
 function writeSlotText(slot,jsonText){
   let stored;
   try{stored=SAVE_LZ_PREFIX+LZString.compressToUTF16(jsonText);}catch{stored=jsonText;}
-  localStorage.setItem(runSlotKey(slot),stored);
+  storageSet(runSlotKey(slot),stored);
 }
 function readSlotText(slot){
-  const v=localStorage.getItem(runSlotKey(slot));
+  const v=storageGet(runSlotKey(slot));
   if(v==null)return null;
   if(v.slice(0,SAVE_LZ_PREFIX.length)===SAVE_LZ_PREFIX)return LZString.decompressFromUTF16(v.slice(SAVE_LZ_PREFIX.length));
   return v; // legacy uncompressed save
@@ -9345,6 +10293,14 @@ function saveRunState(){
   idx.slots[slot]=runMetaFromData(blob);
   saveRunIndex(idx);
 }
+function manualSave(){
+  if(G.dead||G.won){addLog('Nothing to save.',M.sub);return false;}
+  if(!levelStore.length){addLog('No active run to save.',M.sub);return false;}
+  if(['archetype','difficulty','story','resume','return_reveal','title'].includes(G.overlay)){addLog('Start a run before saving.',M.sub);return false;}
+  saveRunState();
+  addLog(`Saved to slot ${_activeRunSlot+1}.`,M.grn);
+  return true;
+}
 // Mobile browsers freeze and evict backgrounded tabs without firing
 // beforeunload, so autosaving only on panel open/close loses runs when the
 // player switches apps or locks the screen. Persist on the lifecycle events
@@ -9369,6 +10325,9 @@ function loadRunState(slot=_activeRunSlot){
     stairLinks=data.stairLinks||{};
     levelStore=data.levelStore.map(unpackLevelFromSave);
     applyGFromSave(data.G);
+    clearRemoteShop();
+    clearRemoteCraft();
+    clearRemoteTerm();
     LOG.length=0;
     for(const e of (data.log||[]))LOG.push(e);
     restoreSnap(levelStore[G.level]);
@@ -9385,8 +10344,8 @@ function normalizeProfile(p){
   out.total_wins=Number(out.total_wins||out.wins||0);
   return out;
 }
-function loadProfile(){try{return normalizeProfile(JSON.parse(localStorage.getItem('arthack_save')));}catch{return defaultProfile();}}
-function saveProfile(p){try{localStorage.setItem('arthack_save',JSON.stringify(p));}catch{}}
+function loadProfile(){try{return normalizeProfile(JSON.parse(storageGet(PROFILE_KEY)));}catch{return defaultProfile();}}
+function saveProfile(p){try{storageSet(PROFILE_KEY,JSON.stringify(p));}catch{}}
 function applyProfileUnlocks(){
   const p=loadProfile();
   const carried=(p.unlocked_modules||[]).slice(0,6);
@@ -9598,8 +10557,9 @@ canvas.addEventListener('pointercancel',e=>{_gesture=null;_ovScroll=null;if(e)_m
       if(e)e.preventDefault();
       if(termBtn.dataset.mode==='craft'){openCraftPanel();render();return;}
       if(termBtn.dataset.mode==='shop'){
-        if(!currentShop()){addLog('No quartermaster nearby.',M.red);render();return;}
-        G.overlay='shop';G.shopCursor=0;G.shopScroll=0;render();return;
+        if(currentShop())openShopPanel(true);
+        else{addLog('No quartermaster nearby — use a shop link from inventory.',M.red);render();}
+        return;
       }
       if(!adjTerminal()){addLog('No terminal adjacent — move next to a ! terminal.',M.red);render();return;}
       openTerminalShell();render();
@@ -9612,27 +10572,38 @@ canvas.addEventListener('pointercancel',e=>{_gesture=null;_ovScroll=null;if(e)_m
     more.addEventListener('touchstart',toggle,{passive:false});
     more.addEventListener('click',toggle);
   }
+  const saveBtn=document.getElementById('tui-save-btn');
+  if(saveBtn){
+    const doSave=e=>{
+      if(e)e.preventDefault();
+      manualSave();
+      closeTray();
+      render();
+    };
+    saveBtn.addEventListener('touchstart',doSave,{passive:false});
+    saveBtn.addEventListener('click',doSave);
+  }
   bindFullscreen();
 })();
 
 bindViewportListeners();
 
 // ── Init ──────────────────────────────────────────────────────
-// One-time: shrink saves written by older (uncompressed) builds so they stop
-// hogging the localStorage quota and leave room for new saves/imports.
+// One-time: shrink saves written by older (uncompressed) builds.
 function recompressExistingSaves(){
   for(let i=0;i<RUN_SLOT_COUNT;i++){
     try{
-      const v=localStorage.getItem(runSlotKey(i));
+      const v=storageGet(runSlotKey(i));
       if(v==null||v.slice(0,SAVE_LZ_PREFIX.length)===SAVE_LZ_PREFIX)continue;
       const data=parseRunSave(v);
       if(data&&data.G&&data.levelStore?.length)writeSlotText(i,v);
     }catch{}
   }
 }
-function init(){
+async function init(){
   ctx.font=`${CH}px 'Courier New',monospace`;
   ctx.textBaseline='top';ctx.textAlign='left';
+  await openSaveStorage();
   migrateLegacyRunSave();
   recompressExistingSaves();
   applyProfileUnlocks();
