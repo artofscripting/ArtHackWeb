@@ -2011,6 +2011,7 @@ function buildLevelStore(act='escape'){
   const prevAct=dungeonAct;
   dungeonAct=act;
   levelStore=[];stairLinks={};_rid=0;
+  clearPackedLevelCache();
   // Known travel spots reference the old level set — clear them on a rebuild.
   G.travel={shop:null,anvil:null,table:null};G.travelConfirm=null;
   for(let l=0;l<NUM_LEVELS;l++){
@@ -5386,7 +5387,6 @@ function updateCornerCtrlsVisibility(){
 }
 
 function render(){
-  panelTransitionSave();
   ctx.setTransform(DPR,0,0,DPR,0,0);
   ctx.fillStyle=M.base;ctx.fillRect(0,0,CAN_W,CAN_H);
   if(G.overlay){
@@ -5414,6 +5414,7 @@ function render(){
     const logRows=Math.floor(LOGH/(IS_PORTRAIT?SCH:CH));
     document.title=`QA ${IS_PORTRAIT?'P':'L'} VW${VW} VH${VH} CW${CW} log${logRows} ov${G.overlay||'-'}`;
   }
+  panelTransitionSave();
 }
 
 // ── Movement & actions ────────────────────────────────────────
@@ -8674,6 +8675,7 @@ function fulfillBuyOrdersForShop(sp,level,x,y){
   sp.stock=sp.stock.slice(0,SHOP_MAX_STOCK);
 }
 function restockAllShops(){
+  clearPackedLevelCache();
   for(let lvl=0;lvl<levelStore.length;lvl++){
     const map=lvl===G.level?specials:levelStore[lvl]?.specials;
     if(!map)continue;
@@ -9171,7 +9173,7 @@ function processCmd(cmd){
   if(low==='skills'||low==='skill'){G.overlay='skills';return;}
   if(low==='map'||low==='minimap'){openMapPanel();return;}
   if(low==='save'){manualSave();return;}
-  if(low==='export'||low==='download'||low==='savefile'){if(levelStore.length)saveRunState();exportRunSave(_activeRunSlot);return;}
+  if(low==='export'||low==='download'||low==='savefile'){if(levelStore.length)flushSaveNow();exportRunSave(_activeRunSlot);return;}
   if(low==='import'||low==='loadfile'){promptImportRunSave(_activeRunSlot);return;}
   if(low==='journal'||low==='notes'){G.overlay='journal';return;}
   if(low==='secrets'||low==='secret'||low==='creds'){openSecretsOverlay();return;}
@@ -9865,15 +9867,46 @@ function openSaveStorage(){
 let _activeRunSlot=0;
 const PANEL_SAVE_OVERLAYS=new Set(['inventory','craft','shop','skills','toolkit','console','log','journal','secrets','help','commands','summary','term_shell','hack','module_select']);
 let _panelSaveOverlay=null;
+let _packedLevelCache=null;
+let _saveIdleHandle=0,_savePending=false;
+function clearPackedLevelCache(){_packedLevelCache=null;}
 function panelTransitionSave(){
   const ov=G.overlay;
   if(ov===_panelSaveOverlay)return;
   const prev=_panelSaveOverlay;
   _panelSaveOverlay=ov;
   if(!levelStore.length||G.dead||G.won)return;
-  if(PANEL_SAVE_OVERLAYS.has(ov)||PANEL_SAVE_OVERLAYS.has(prev))saveRunState();
+  if(PANEL_SAVE_OVERLAYS.has(ov)||PANEL_SAVE_OVERLAYS.has(prev))scheduleSaveRunState();
 }
 function resetPanelSaveTrack(ov=null){_panelSaveOverlay=ov;}
+function saveBlockedOverlay(){
+  return['archetype','difficulty','story','resume','return_reveal','title'].includes(G.overlay);
+}
+function scheduleSaveRunState(){
+  if(G.dead||G.won||!levelStore.length||saveBlockedOverlay())return;
+  _savePending=true;
+  if(_saveIdleHandle)return;
+  const run=()=>{
+    _saveIdleHandle=0;
+    if(!_savePending)return;
+    _savePending=false;
+    saveRunStateCore();
+  };
+  if(typeof requestIdleCallback==='function')
+    _saveIdleHandle=requestIdleCallback(run,{timeout:1500});
+  else
+    _saveIdleHandle=setTimeout(run,16);
+}
+function flushSaveNow(){
+  if(_saveIdleHandle){
+    if(typeof cancelIdleCallback==='function')cancelIdleCallback(_saveIdleHandle);
+    else clearTimeout(_saveIdleHandle);
+    _saveIdleHandle=0;
+  }
+  _savePending=false;
+  if(G.dead||G.won||!levelStore.length||saveBlockedOverlay())return;
+  saveRunStateCore();
+}
 const RUN_SAVE_VER=2;
 const GRID_RLE_MARK='\x1e';
 function packGrid(grid){
@@ -9984,6 +10017,11 @@ function unpackLevelFromSave(lvl){
     visible:new Set()
   };
 }
+function cloneSaveData(x){
+  if(x==null)return x;
+  if(typeof structuredClone==='function')return structuredClone(x);
+  return JSON.parse(JSON.stringify(x));
+}
 function packGForSave(){
   return{
     px:G.px,py:G.py,level:G.level,phase:G.phase,
@@ -9992,25 +10030,25 @@ function packGForSave(){
     skills:{...G.skills},_skillXP:G._skillXP?{...G._skillXP}:undefined,
     modules:[...G.modules],tools:[...G.tools],
     resources:{gpu:[...G.resources.gpu],cloud:[...G.resources.cloud],relay:[...G.resources.relay],compute:[...G.resources.compute]},
-    equipped:JSON.parse(JSON.stringify(G.equipped)),
-    inventory:JSON.parse(JSON.stringify(G.inventory)),
-    backpackInv:JSON.parse(JSON.stringify(G.backpackInv)),
+    equipped:cloneSaveData(G.equipped),
+    inventory:cloneSaveData(G.inventory),
+    backpackInv:cloneSaveData(G.backpackInv),
     maxInv:G.maxInv,maxWeight:G.maxWeight,
-    activeEffects:JSON.parse(JSON.stringify(G.activeEffects)),
+    activeEffects:cloneSaveData(G.activeEffects),
     validCreds:G.validCreds,firmwareBonus:G.firmwareBonus,
     escaped:G.escaped,portalArmed:G.portalArmed,won:G.won,dead:G.dead,
-    clues:G.clues,journal:[...G.journal],secrets:JSON.parse(JSON.stringify(G.secrets)),
-    contracts:JSON.parse(JSON.stringify(G.contracts)),rep:G.rep,
+    clues:G.clues,journal:[...G.journal],secrets:cloneSaveData(G.secrets),
+    contracts:cloneSaveData(G.contracts),rep:G.rep,
     stats:{...G.stats},heatPeak:G.heatPeak,difficulty:G.difficulty,xpMult:G.xpMult,
     shootMode:G.shootMode,hackMode:G.hackMode,responderID:G.responderID,
     lastHeatSpawn:G.lastHeatSpawn,moduleCD:{...G.moduleCD},
     personality:{...G.personality},
-    console:G.console?JSON.parse(JSON.stringify(G.console)):null,
+    console:G.console?cloneSaveData(G.console):null,
     nextRestockTurn:G.nextRestockTurn,difficultyMult:G.difficultyMult,
     showMinimap:G.showMinimap,invView:G.invView,shopMode:G.shopMode,
-    travel:JSON.parse(JSON.stringify(G.travel||{shop:null,anvil:null,table:null})),
-    waypoints:JSON.parse(JSON.stringify(G.waypoints||[])),
-    buyOrders:JSON.parse(JSON.stringify(G.buyOrders||[])),
+    travel:cloneSaveData(G.travel||{shop:null,anvil:null,table:null,terminal:null}),
+    waypoints:cloneSaveData(G.waypoints||[]),
+    buyOrders:cloneSaveData(G.buyOrders||[]),
     shopLoyalty:{...G.shopLoyalty},
     lootMagnet:!!G.lootMagnet,decoyUntil:G.decoyUntil||0,decoyPos:G.decoyPos?{...G.decoyPos}:null,
     smokeUntil:G.smokeUntil||0,
@@ -10019,6 +10057,7 @@ function packGForSave(){
   };
 }
 function applyGFromSave(p){
+  clearPackedLevelCache();
   Object.assign(G,p);
   G.travel=p.travel||{shop:null,anvil:null,table:null,terminal:null};
   if(!G.travel.terminal)G.travel.terminal=null;
@@ -10052,12 +10091,20 @@ function applyGFromSave(p){
 }
 function packRunSave(){
   if(levelStore.length)saveCurrentLevel();
+  if(!_packedLevelCache||_packedLevelCache.length!==levelStore.length)
+    _packedLevelCache=new Array(levelStore.length);
+  const levels=levelStore.map((lvl,i)=>{
+    if(i!==G.level&&_packedLevelCache[i])return _packedLevelCache[i];
+    const packed=packLevelForSave(lvl);
+    _packedLevelCache[i]=packed;
+    return packed;
+  });
   return{
     v:RUN_SAVE_VER,
     savedAt:Date.now(),
     seed:_s,seq:_seq,rid:_rid,
     numLevels:NUM_LEVELS,dungeonAct,stairLinks,
-    levelStore:levelStore.map(packLevelForSave),
+    levelStore:levels,
     G:packGForSave(),
     log:LOG.slice(-400)
   };
@@ -10273,10 +10320,7 @@ function importRunSaveText(text,slot){
   // Load the imported run from its slot so the import takes effect immediately.
   if(!continueRunSave(slot)){G._loadMsg='Imported, but the run failed to load (corrupt?).';G.overlay='resume';render();}
 }
-function saveRunState(){
-  if(G.dead||G.won)return;
-  if(!levelStore.length)return;
-  if(['archetype','difficulty','story','resume','return_reveal'].includes(G.overlay))return;
+function saveRunStateCore(){
   const slot=_activeRunSlot;
   let blob;
   try{
@@ -10293,11 +10337,12 @@ function saveRunState(){
   idx.slots[slot]=runMetaFromData(blob);
   saveRunIndex(idx);
 }
+function saveRunState(){scheduleSaveRunState();}
 function manualSave(){
   if(G.dead||G.won){addLog('Nothing to save.',M.sub);return false;}
   if(!levelStore.length){addLog('No active run to save.',M.sub);return false;}
-  if(['archetype','difficulty','story','resume','return_reveal','title'].includes(G.overlay)){addLog('Start a run before saving.',M.sub);return false;}
-  saveRunState();
+  if(saveBlockedOverlay()){addLog('Start a run before saving.',M.sub);return false;}
+  flushSaveNow();
   addLog(`Saved to slot ${_activeRunSlot+1}.`,M.grn);
   return true;
 }
@@ -10305,7 +10350,7 @@ function manualSave(){
 // beforeunload, so autosaving only on panel open/close loses runs when the
 // player switches apps or locks the screen. Persist on the lifecycle events
 // that DO fire on mobile: visibilitychange (-> hidden) and pagehide.
-function flushRunSave(){if(levelStore.length&&!G.dead&&!G.won)saveRunState();}
+function flushRunSave(){if(levelStore.length&&!G.dead&&!G.won)flushSaveNow();}
 document.addEventListener('visibilitychange',()=>{if(document.visibilityState==='hidden')flushRunSave();});
 window.addEventListener('pagehide',flushRunSave);
 window.addEventListener('beforeunload',flushRunSave);
