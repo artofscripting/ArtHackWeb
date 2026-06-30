@@ -1527,6 +1527,10 @@ function generatePickupLoot(source,lvl){
   const eff=effectiveThreatLvl(lvl)+Math.floor(bonus*5)+consoleStatSum('compute');
   const consoleDrop=tryConsolePartLoot(source,eff,bonus);
   if(consoleDrop)return consoleDrop;
+  if(['floor','chest','hack_chest','hack_chest_locked','vault'].includes(source)){
+    const modLoot=tryFloorModuleLoot(lvl);
+    if(modLoot)return modLoot;
+  }
   if(rf()<0.10+bonus*0.2)return mkCurrencyDrop(eff,bonus>0.35?'premium':'normal');
   if(rf()<0.12+bonus*0.22)return mkPotion(eff);
   if(bonus>0.48||source==='hack_chest_locked'||source==='vault')return randLoot(eff,'premium');
@@ -1619,8 +1623,49 @@ function uninstallConsolePart(slot){
 }
 function consolePartsInInv(){return [...G.inventory,...G.backpackInv].filter(it=>it.kind==='console_part');}
 const SHOP_MAX_STOCK=42;
-function mkShopModule(lvl=0){
-  const mn=ch(Object.keys(MODULE_TO_TOOL));
+function modulesNeededFromSpecials(map){
+  const mods=new Set();
+  if(!map)return [];
+  for(const sp of Object.values(map)){
+    if(sp.kind!=='terminal')continue;
+    for(const tool of requiredTools(sp)){
+      if(BUILTIN_TOOLS.has(tool))continue;
+      const mod=TOOL_TO_MODULE[tool];
+      if(mod)mods.add(mod);
+    }
+  }
+  return [...mods];
+}
+function modulesNeededForFloor(lvl){
+  const map=lvl===G.level?specials:levelStore[lvl]?.specials;
+  return modulesNeededFromSpecials(map);
+}
+function unownedModules(list){
+  return list.filter(m=>!G.modules.has(m));
+}
+function shopLevelFor(sp){
+  if(!sp)return G.level;
+  const m=String(sp.name||'').match(/Level (\d+)/);
+  if(m)return Number(m[1]);
+  if(_remoteShopCtx?.sp===sp)return _remoteShopCtx.level;
+  return G.level;
+}
+function syncShopModules(sp,lvl){
+  if(!sp?.stock)return;
+  sp.stock=sp.stock.filter(it=>!(it.kind==='module'&&it.module&&G.modules.has(it.module)));
+  if(lvl===1){
+    const eff=effectiveThreatLvl(lvl);
+    for(const mod of unownedModules(modulesNeededForFloor(lvl))){
+      if(!sp.stock.some(it=>it.kind==='module'&&it.module===mod)){
+        const it=mkShopModuleItem(mod,eff);
+        if(it)sp.stock.unshift(it);
+      }
+    }
+  }
+  sp.stock=sp.stock.slice(0,SHOP_MAX_STOCK);
+}
+function mkShopModuleItem(mn,lvl=0){
+  if(!mn||!MODULE_TO_TOOL[mn])return null;
   const recipe=CRAFT_RECIPES.find(r=>r.result?.module===mn);
   const res=recipe?.result||{};
   const eff=effectiveThreatLvl(lvl);
@@ -1628,6 +1673,16 @@ function mkShopModule(lvl=0){
   return mkItem({char:'$',name:`${mn} module`,kind:'module',module:mn,slot:'none',
     desc:res.desc||`Hack module — unlocks ${MODULE_TO_TOOL[mn]}`,weight:0.2,
     valueCp:itemValueCp(Number(res.valueCp||200),rar,qual,eff,0),quality:qual,rarity:rar});
+}
+function mkShopModule(lvl=0){
+  const pool=unownedModules(Object.keys(MODULE_TO_TOOL));
+  if(!pool.length)return null;
+  return mkShopModuleItem(ch(pool),lvl);
+}
+function tryFloorModuleLoot(lvl){
+  const pool=unownedModules(modulesNeededForFloor(lvl));
+  if(!pool.length)return null;
+  return mkShopModuleItem(ch(pool),lvl);
 }
 function shopRestockPick(lvl){
   const eff=effectiveThreatLvl(lvl);
@@ -1637,16 +1692,25 @@ function shopRestockPick(lvl){
   if(r<0.46)return mkConsolePart(pickConsolePartId(eff),eff);
   if(r<0.56)return mkPotionFromFamily(ch(POTION_FAMILY_ORDER),eff);
   if(r<0.64)return mkPersonalityGem(eff);
-  if(r<0.72)return mkShopModule(eff);
+  if(r<0.72){const it=mkShopModule(eff);if(it)return it;}
   if(r<0.80)return mkMat(eff);
   if(r<0.88)return mkPotion(eff);
   if(r<0.94){const bp=ch(BPACKS);return{...bp,valueCp:itemValueCp(bp.valueCp,bp.rarity,'fine',eff,0)};}
   if(r<0.97){const g=mkShopSpecial('shop_link',eff);if(g)return g;}
   return mkCurrencyDrop(eff);
 }
-function shopStock(lvl=0){
+function shopStock(lvl=0,specialsMap=null){
   const s=[];
   const eff=effectiveThreatLvl(lvl);
+  const floorMods=modulesNeededFromSpecials(specialsMap);
+  if(lvl===1){
+    for(const mod of floorMods){
+      if(!s.some(it=>it.module===mod)){
+        const it=mkShopModuleItem(mod,eff);
+        if(it)s.unshift(it);
+      }
+    }
+  }
   for(let i=0;i<ri(8,11);i++)s.push(mkGear(true,eff));
   for(let i=0;i<ri(7,10);i++)s.push(mkGear(false,eff));
   for(let i=0;i<ri(6,9);i++)s.push(mkJewelry(eff));
@@ -1665,7 +1729,7 @@ function shopStock(lvl=0){
   for(let i=0;i<ri(3,5);i++)s.push(mkPotion(eff));
   for(let i=0;i<ri(4,6);i++)s.push(mkPersonalityGem(eff));
   for(let i=0;i<ri(4,6);i++)s.push(mkMat(eff));
-  for(let i=0;i<ri(6,9);i++)s.push(mkShopModule(eff));
+  for(let i=0;i<ri(6,9);i++){const it=mkShopModule(eff);if(it&&!s.some(x=>x.module===it.module))s.push(it);}
   for(let i=0;i<ri(2,4);i++)s.push(mkCurrencyDrop(eff,'premium'));
   if(rf()<0.4)s.push(mkGear(true,eff+1));
   if(rf()<0.3)s.push(mkJewelry(eff+1));
@@ -1960,7 +2024,7 @@ function populateLevel(snap){
   // Shop
   const shopRoom=lvlNum===0?(rms.find(r=>r.id===`l0r0_0`)||ch(rms)):ch(rms);
   {const f=floorCells(g,shopRoom).filter(([x,y])=>!sps[`${x},${y}`]);
-   if(f.length){const[sx,sy]=ch(f);setc(g,sx,sy,'%');sps[`${sx},${sy}`]={kind:'shop',name:`Level ${lvlNum} Quartermaster`,stock:shopStock(lvlNum),nextRestock:ri(30,90)};}}
+   if(f.length){const[sx,sy]=ch(f);setc(g,sx,sy,'%');sps[`${sx},${sy}`]={kind:'shop',name:`Level ${lvlNum} Quartermaster`,stock:shopStock(lvlNum,sps),nextRestock:ri(30,90)};}}
 
   // Crafting stations
   const stHosts=lvlNum===0?[startRm,startRm]:sm(rms,Math.min(2,rms.length));
@@ -4077,6 +4141,7 @@ function drawCraft(){
 function drawShop(){
   const sp=activeShop();
   if(!sp){overlayText([['Not at a shop.',M.red,20],['Any key to close.',M.sub,2]]);return;}
+  syncShopModules(sp,shopLevelFor(sp));
   const uplink=_remoteShopCtx?`  [UPLINK L${_remoteShopCtx.level}]`:'';
   const vendor=activeShopVendor();
   const disc=vendor?shopLoyaltyRate(vendor):0;
@@ -5482,6 +5547,7 @@ function pickupItem(it){
     const qual=real.rarity||real.quality||'common';
     if(addHeldItem(real)){
       grid[it.y][it.x]='.';
+      if(real.kind==='module')installModuleItem(real,'found loot');
       addLog(`Picked up ${real.name} (${srcLabel}, ${qual}).`,M.yel);
       return true;
     }
@@ -7711,7 +7777,7 @@ function applyTerminalEffect(term,logFn){
   else if(ctrl==='vpn'){revealCurrentLevel();log('Hacked VPN: map revealed, all doors forced open.',M.grn);}
   else if(ctrl==='container'){const cells=rooms.flatMap(r=>floorCells(grid,r)).filter(([x,y])=>!entityAt(x,y));if(cells.length)[G.px,G.py]=ch(cells);computeVisible(visionRadius());log('Hacked container: teleported to random location.',M.mau);}
   else if(ctrl==='scada'){for(const e of Object.values(entities))e.alerted=false;log('Hacked SCADA: all controls unlocked.',M.grn);}
-  else if(ctrl==='radio'){log('Hacked radio: free module spawned.',M.grn);const mn=ch(Object.keys(MODULE_TO_TOOL));if(!G.modules.has(mn)){G.modules.add(mn);G.tools.add(MODULE_TO_TOOL[mn]);log(`Gained module: ${mn}`,M.pch);}}
+  else if(ctrl==='radio'){log('Hacked radio: free module spawned.',M.grn);const modLoot=tryFloorModuleLoot(G.level)||mkShopModuleItem(ch(unownedModules(Object.keys(MODULE_TO_TOOL))),G.level);if(modLoot){const[fx,fy]=freeNear(G.px,G.py);placeWorldItem(modLoot,fx,fy);log(`Gained module: ${modLoot.module}`,M.pch);}}
   else if(ctrl==='comm'){for(const e of Object.values(entities))if(e.hostile)e.alerted=false;log('Hacked comm: guard coordination jammed; patrols de-alerted.',M.grn);}
   else if(ctrl==='db'){
     const frag=ch(CLUE_HACK_INTEL);
@@ -8656,6 +8722,7 @@ function placeBuyOrder(itemName){
   if(/^\d+$/.test(token))it=entries[Number(token)-1]?.item;
   else it=entries.find(e=>e.item.name.toLowerCase().includes(token.toLowerCase()))?.item;
   if(!it){addLog(`Not in stock: ${itemName}`,M.red);return;}
+  if(it.kind==='module'&&it.module&&G.modules.has(it.module)){addLog('You already own that module.',M.red);return;}
   const cost=Math.ceil(shopBuyPrice(it,vendor)*1.1);
   if(G.walletCp<cost){addLog(`Order needs ${cost}cp (110% hold). Have ${G.walletCp}cp.`,M.red);return;}
   G.walletCp-=cost;
@@ -8669,6 +8736,7 @@ function fulfillBuyOrdersForShop(sp,level,x,y){
   if(!pending.length)return;
   G.buyOrders=G.buyOrders.filter(o=>o.vendorKey!==key);
   for(const o of pending){
+    if(o.item.kind==='module'&&o.item.module&&G.modules.has(o.item.module))continue;
     sp.stock.unshift({...o.item,id:`it${++_seq}`,_ordered:true});
     addLog(`Buy order fulfilled: ${o.item.name} at vendor (level ${level}).`,M.grn);
   }
@@ -8684,8 +8752,13 @@ function restockAllShops(){
       const[x,y]=key.split(',').map(Number);
       fulfillBuyOrdersForShop(sp,lvl,x,y);
       const add=ri(4,8);
-      for(let i=0;i<add&&sp.stock.length<SHOP_MAX_STOCK;i++)sp.stock.push(shopRestockPick(effectiveThreatLvl(lvl)));
-      sp.stock=sp.stock.slice(0,SHOP_MAX_STOCK);
+      for(let i=0;i<add&&sp.stock.length<SHOP_MAX_STOCK;i++){
+        const pick=shopRestockPick(effectiveThreatLvl(lvl));
+        if(!pick)continue;
+        if(pick.kind==='module'&&pick.module&&(G.modules.has(pick.module)||sp.stock.some(x=>x.module===pick.module)))continue;
+        sp.stock.push(pick);
+      }
+      syncShopModules(sp,lvl);
     }
   }
 }
@@ -8734,14 +8807,16 @@ function teleportWaypoint(i){
 }
 function mkBlackMarketStock(lvl=0){
   const eff=effectiveThreatLvl(lvl)+1;
-  const mods=sh([...BLACK_MARKET_MODULES]).slice(0,ri(4,6));
+  const pool=unownedModules(BLACK_MARKET_MODULES);
+  const mods=sh(pool).slice(0,ri(4,Math.min(6,pool.length||1)));
   return mods.map(mn=>{
-    const it=mkShopModule(eff);
+    const it=mkShopModuleItem(mn,eff);
+    if(!it)return null;
     it.illegal=true;
     it.heatCost=1.2+rf()*0.8;
     it.valueCp=Math.floor(Number(it.valueCp||200)*1.4);
     return it;
-  });
+  }).filter(Boolean);
 }
 function blackMarketTerminal(){
   for(let dy=-1;dy<=1;dy++)for(let dx=-1;dx<=1;dx++){
@@ -8753,7 +8828,8 @@ function blackMarketTerminal(){
 function openBlackMarket(){
   const term=blackMarketTerminal();
   if(!term){addLog('No rooted black-market terminal adjacent.',M.red);return;}
-  if(!term.blackMarketStock?.length)term.blackMarketStock=mkBlackMarketStock(G.level);
+  term.blackMarketStock=(term.blackMarketStock||[]).filter(it=>!(it.kind==='module'&&it.module&&G.modules.has(it.module)));
+  if(!term.blackMarketStock.length)term.blackMarketStock=mkBlackMarketStock(G.level);
   G._blackMarketTerm=term;
   G.overlay='black_market';
   G.shopCursor=0;G.shopScroll=0;G.shopMode='stock';
@@ -8766,6 +8842,7 @@ function doBuyBlackMarket(name){
   let it=stock.find(x=>x.name.toLowerCase().includes(token));
   if(/^\d+$/.test(token))it=shopStockEntries(stock)[Number(token)-1]?.item;
   if(!it){addLog(`Not offered: ${name}`,M.red);return;}
+  if(it.kind==='module'&&it.module&&G.modules.has(it.module)){addLog('You already own that module.',M.red);return;}
   const idx=stock.indexOf(it);
   const cost=Number(it.valueCp||0);
   const heat=Number(it.heatCost||1.5);
@@ -8901,6 +8978,7 @@ function doBuy(name){
   if(/^\d+$/.test(token))it=entries[Number(token)-1]?.item;
   else it=entries.find(e=>e.item.name.toLowerCase().includes(token.toLowerCase()))?.item;
   if(!it){addLog(`Not in stock: ${name}`,M.red);return;}
+  if(it.kind==='module'&&it.module&&G.modules.has(it.module)){addLog('You already own that module.',M.red);return;}
   const idx=shop.stock.indexOf(it);
   if(idx<0){addLog(`Not in stock: ${name}`,M.red);return;}
   const vendor=activeShopVendor();
@@ -9275,9 +9353,11 @@ function processCmd(cmd){
       else addLog(`Practiced ${sk} on ${t.ssid} — XP gained, no level-up (${Math.round(skillLevelUpChance(before)*100)}% roll). (${left} left)`,M.sub);
     } else addLog(`Drilled ${sk} on ${t.ssid} — nothing new. (${left} left, +0.1 heat)`,M.sub);
     if(Math.random()<1/500){
-      const mn=ch(Object.keys(MODULE_TO_TOOL));
-      G.inventory.push(mkItem({char:'$',name:`${mn} module`,kind:'module',module:mn,weight:0.2,valueCp:200}));
-      addLog(`Scavenged rare module from ${t.ssid}: ${mn}`,M.pch);
+      const pool=unownedModules(Object.keys(MODULE_TO_TOOL));
+      if(pool.length){
+        const modLoot=mkShopModuleItem(ch(pool),G.level);
+        if(modLoot){G.inventory.push(modLoot);installModuleItem(modLoot,'practice scavenge');addLog(`Scavenged rare module from ${t.ssid}: ${modLoot.module}`,M.pch);}
+      }
     }
     endTurn();
   } else if(c==='clearlogs'||low==='clear logs'||low==='wipe logs'||low==='wipe'||low==='cover tracks'){
@@ -9768,28 +9848,33 @@ function applyArchetype(){
   addLog(`Archetype: ${a.label}. ${a.passive}`,M.lav);
 }
 
+function initBonusConsole(){
+  const loadout={
+    chassis:'chassis_hardened',keyboard:'kb_mech',screen:'screen_hd',cpu:'cpu_quad',
+    gpu:'gpu_mk2',nic:'nic_link7',storage:'storage_flash',cooler:'cooler_aio'
+  };
+  G.console=G.console||{};
+  for(const s of CONSOLE_SLOTS)G.console[s]=null;
+  for(const[slot,id] of Object.entries(loadout))G.console[slot]=mkConsolePart(id);
+}
+function grantModule(mod){
+  if(!mod||!MODULE_TO_TOOL[mod]||G.modules.has(mod))return false;
+  G.modules.add(mod);
+  G.tools.add(MODULE_TO_TOOL[mod]);
+  return true;
+}
+
 function applyBonus(){
-  G.walletCp=1000;
-  const items2=[
-    mkItem({char:'[',name:'leather haversack',kind:'backpack',slot:'back',carryBonus:56,bagCap:40,weight:2.5,valueCp:720}),
-    mkItem({char:'$',name:'war axe',kind:'weapon',slot:'weapon',attack:25,weight:3.5,valueCp:600,quality:'fine',rarity:'rare'})
-  ];
-  G.inventory.push(...items2);
-  // Give every module needed to hack terminals on this floor that the player doesn't already have
-  const floorMods=new Set();
-  for(const sp of Object.values(specials)){
-    if(sp.kind!=='terminal')continue;
-    for(const tool of requiredTools(sp)){
-      if(BUILTIN_TOOLS.has(tool))continue;
-      const mod=TOOL_TO_MODULE[tool];
-      if(mod&&!G.modules.has(mod))floorMods.add(mod);
-    }
-  }
-  for(const mod of floorMods){G.modules.add(mod);const t=MODULE_TO_TOOL[mod];if(t)G.tools.add(t);}
-  for(let i=0;i<14;i++){let gem=mkMat();while(gem.material!=='gem')gem=mkMat();G.inventory.push(gem);}
-  G.xpMult=3;
-  addLog(`START BONUS: haversack, war axe, ${floorMods.size} floor modules, 1000cp, XP ×3.`,M.pch);
-  if(floorMods.size)addLog(`  modules: ${[...floorMods].join(', ')}`,M.sub);
+  G.walletCp=10000;
+  for(const sk of Object.keys(G.skills))G.skills[sk]=4;
+  initBonusConsole();
+  const bag=mkShopSpecial('bag_of_holding',0);
+  if(bag)G.equipped.back=bag;
+  const botnetMods=['cron_backdoor','dns_tunnel'];
+  for(const mod of botnetMods)grantModule(mod);
+  addLog('START BONUS: mid-tier portable rig, bag of holding, 10000cp, all skills Lv4, botnet kit.',M.pch);
+  addLog('  rig: hardened frame · mech keys · HD panel · quad CPU · G400 GPU · WiFi 7 · flash vault · AIO cooler',M.sub);
+  addLog('  modules: cron_backdoor (persist) + dns_tunnel (C2)',M.sub);
 }
 
 function restartGame(){
