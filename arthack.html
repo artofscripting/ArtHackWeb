@@ -8,7 +8,7 @@
 <meta name="mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
-<meta name="apple-mobile-web-app-title" content="ARTHACK">
+<meta name="apple-mobile-web-app-title" content="ArtHack">
 <title>ArtHack — Dungeon Escape</title>
 <style>
 :root{--safe-t:env(safe-area-inset-top,0px);--safe-r:env(safe-area-inset-right,0px);--safe-b:env(safe-area-inset-bottom,0px);--safe-l:env(safe-area-inset-left,0px)}
@@ -106,7 +106,7 @@ input,textarea{-webkit-user-select:text;user-select:text}
 </div>
 <script>
 // ═══════════════════════════════════════════════════════════
-//  ARTHACK — Full JS Port  Stage 1: Core Engine
+//  ArtHack — Full JS Port  Stage 1: Core Engine
 //  Stage 1 parity: core dungeon/movement/fog verified against Python flow.
 //  Stage 2 parity: enemies/combat/ranged/stealth/heat/difficulty.
 //  Stage 3 parity: heat consequences/SOC responder/contracts/rep.
@@ -942,7 +942,7 @@ function buildStoryBriefing(){
     'The Black Keep never finished modernizing.',
     'Barons swear oaths on steel; seneschals swear oaths on SSH.',
     'Guards wear plate and carry poleaxes because the deep strata',
-    'jams radio and swallow signal. Guild contractors — ARTHACK —',
+    'jams radio and swallow signal. Guild contractors — ArtHack —',
     'carry both: haversacks, blades, and portable rigs that speak',
     'CastleNet on door runes, vault SSIDs, and scada saints.',
     '---',
@@ -965,7 +965,7 @@ function drawStory(){
   const maxScroll=Math.max(0,lines.length-pg);
   G.storyScroll=Math.max(0,Math.min(G.storyScroll||0,maxScroll));
   const vis=lines.slice(G.storyScroll,G.storyScroll+pg);
-  let row=overlayText([['═══ ARTHACK — BRIEFING ═══',M.lav,15],['---']]);
+  let row=overlayText([['═══ ArtHack — BRIEFING ═══',M.lav,15],['---']]);
   for(const ln of vis){
     let col=M.txt;
     if(ln==='---')col=M.s1;
@@ -1032,7 +1032,7 @@ function drawReturnReveal(){
   const maxScroll=Math.max(0,lines.length-pg);
   G.returnRevealScroll=Math.max(0,Math.min(G.returnRevealScroll||0,maxScroll));
   const vis=lines.slice(G.returnRevealScroll,G.returnRevealScroll+pg);
-  let row=overlayText([['═══ ARTHACK — ORDERS ═══',M.lav,15],['---']]);
+  let row=overlayText([['═══ ArtHack — ORDERS ═══',M.lav,15],['---']]);
   for(const ln of vis){
     let col=M.txt;
     if(ln==='---')col=M.s1;
@@ -1184,7 +1184,7 @@ const CLUE_NOTES=[
   'Torn map edge: "O marks where the mesh punches through."',
   'Monk\'s cipher: "Three stars (*) hidden where scribes fear to look."',
   'Wax seal flake: "Return to the deep — the gate only opens one way."',
-  'Guild chit: "ARTHACK: collect parchment, not glory."',
+  'Guild chit: "ArtHack: collect parchment, not glory."',
   'Torch-blackened: "Steel for the halls. Rig for the runes."',
   'Quartermaster tally: "Portal fuel: three clue-fragments minimum."',
   'Scribe\'s draft: "CastleNet-PORTAL binds to siege charter hash."',
@@ -2746,7 +2746,7 @@ function drawSidebar(){
   for(let y=0;y<Math.ceil(sbH/SCH)+1;y++){ctx.fillText('│',ox,y*SCH);}
   let row=0;
   function sl(text,color=M.txt,x=1){ctx.fillStyle=color;ctx.fillText(text.slice(0,sbChars),ox+x*SCW,row++*SCH);}
-  sl('══ ARTHACK ══',M.lav);sl('');
+  sl('══ ArtHack ══',M.lav);sl('');
   const hlvl=heatLevel();
   sl(`HEAT: ${G.heat.toFixed(1)} [${HEAT_LABELS[hlvl]}]`,HEAT_COLORS[hlvl]);
   // Heat bar
@@ -3247,7 +3247,7 @@ function drawTitle(){
   let y=topY+lines.length*lineH+lineH*0.5;
   const ctr=(txt)=>{ctx.fillText(txt,(CAN_W-ctx.measureText(txt).width)/2,y);};
   const tfs=Math.max(14,Math.min(44,Math.floor(CAN_W*0.075)));
-  ctx.font=`bold ${tfs}px 'Courier New',monospace`;ctx.fillStyle=M.tea;ctr('ARTHACK');y+=tfs*1.25;
+  ctx.font=`bold ${tfs}px 'Courier New',monospace`;ctx.fillStyle=M.tea;ctr('ArtHack');y+=tfs*1.25;
   const sfs=Math.max(10,Math.min(18,Math.floor(CAN_W*0.028)));
   ctx.font=`${sfs}px 'Courier New',monospace`;ctx.fillStyle=M.sub;ctr('D U N G E O N   E S C A P E');y+=sfs*2.1;
   let saves=0;for(let i=0;i<RUN_SLOT_COUNT;i++)if(peekRunSave(i))saves++;
@@ -3397,7 +3397,7 @@ function drawWin(){
     ['  ██████╔╝ ╚███╔███╔╝██║██║ ╚███║',M.grn,4],
     ['  ╚═════╝   ╚══╝╚══╝ ╚═╝╚═╝  ╚══╝',M.grn,4],
     ['',''],
-    ['  ARTHACK COMPLETE — Art steps through the portal and goes home.',M.lav,4],
+    ['  ArtHack COMPLETE — Art steps through the portal and goes home.',M.lav,4],
     ['---']
   ];
   for(const line of runSummaryLines())lines.push([`  ${line}`,line.startsWith('Score')?M.yel:M.sub,4]);
@@ -3522,7 +3522,7 @@ function drawHelp(){
     '  Story strain rises as you delve for clues toward the portal.':
     '  Story strain rises as you climb toward the surface.';
   overlayText([
-    ['═══ ARTHACK HELP ═══',M.lav,15],['---'],
+    ['═══ ArtHack HELP ═══',M.lav,15],['---'],
     ...storyLines,
     ['MOVEMENT:',M.yel,2],
     ['  Arrow keys / WASD / hjk — move 8 directions',M.sub,2],
@@ -4178,7 +4178,7 @@ function drawSkills(){
 }
 
 function drawToolkit(){
-  let row=overlayText([['═══ ARTHACK TOOLKIT ═══',M.lav,15],['---']],2,1);
+  let row=overlayText([['═══ ArtHack TOOLKIT ═══',M.lav,15],['---']],2,1);
   const CAP=8;
   row=overlayText([['RIG:',M.yel,2]],2,row);
   const kb=G.console?.keyboard?.name||'—',accel=G.console?.gpu?.name||'none';
@@ -5456,7 +5456,7 @@ function tryMove(dx,dy){
     else if(sp.kind==='gate'&&!G.escaped){completeEscapeAct();return;}
     else if(sp.kind==='trapdoor'){transitionBySpecial(sp);endTurn();return;}
     else if(sp.kind==='portal'){
-      if(G.portalArmed){G.won=true;G.phase='win';addLog('You step through the portal — ARTHACK COMPLETE!',M.grn);onWin();G.overlay='win';}
+      if(G.portalArmed){G.won=true;G.phase='win';addLog('You step through the portal — ArtHack COMPLETE!',M.grn);onWin();G.overlay='win';}
       else if(G.escaped){addLog('The portal hums but stays sealed — find the charter fragments first.',M.yel);}
       else{addLog('A strange glyph pulses in the stone. You have no idea what it does yet.',M.sub);}
     }
@@ -9406,7 +9406,7 @@ document.addEventListener('keydown',e=>{
   if(k==='x'||k==='X'){beginTerminalHack(adjTerminal(),'balanced');render();return;}
   if(k==='-'){processCmd('clearlogs');render();return;}
   if(k==='r'||k==='R'){addLog('You rest and listen to the castle.',M.sub);endTurn();render();return;}
-  if(k==='q'||k==='Q'){if(confirm('Quit ARTHACK?')){G.overlay='quit';render();}return;}
+  if(k==='q'||k==='Q'){if(confirm('Quit ArtHack?')){G.overlay='quit';render();}return;}
   e.preventDefault();
   let dx=0,dy=0;
   if(k==='ArrowUp'||k==='w'||k==='W'||k==='k')dy=-1;
