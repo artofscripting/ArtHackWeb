@@ -3906,6 +3906,7 @@ function drawConsole(){
   ],2,row+1);
 }
 function handleConsoleKey(e){
+  if(e.key==='Escape'||e.key==='q'||e.key==='0'){G.overlay=null;return;}
   const slots=CONSOLE_SLOTS,inv=consolePartsInInv();
   const focus=G.consoleFocus||'slots';
   if(e.key==='Tab'){G.consoleFocus=focus==='slots'?'parts':'slots';return;}
