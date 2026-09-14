@@ -5305,6 +5305,10 @@ function ctxFileBtn(label,cls,action){
 function updateCtxBar(){
   const bar=document.getElementById('ctx-bar');
   if(!bar)return;
+  if(G.overlay==='title'&&updateCtxBar._lastOverlay==='title'){
+    bar.style.display='flex';
+    return;
+  }
   bar.innerHTML='';
   bar.classList.toggle('setup',G.overlay==='title'||G.overlay==='archetype'||G.overlay==='difficulty'||G.overlay==='story'||G.overlay==='return_reveal'||G.overlay==='resume');
   bar.classList.toggle('panel',!!G.overlay&&G.overlay!=='title'&&G.overlay!=='archetype'&&G.overlay!=='difficulty'&&G.overlay!=='story'&&G.overlay!=='return_reveal'&&G.overlay!=='resume'&&TOUCH_MODE);
@@ -5502,8 +5506,10 @@ function updateCtxBar(){
   // reposition canvas only if bar visibility/height changed
   const newH=hadButtons?bar.offsetHeight:0;
   if(newH!==updateCtxBar._lastH){updateCtxBar._lastH=newH;requestAnimationFrame(refit);}
+  updateCtxBar._lastOverlay=G.overlay||null;
 }
 updateCtxBar._lastH=0;
+updateCtxBar._lastOverlay=null;
 updateTouchUIVisibility._lastHide=null;
 updateTouchPrimaryBtn._last=null;
 function updateTouchPrimaryBtn(){
